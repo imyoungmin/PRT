@@ -39,8 +39,8 @@ Object3D::Object3D( const char* type, const char* filename, const char* textureF
 	if( textureFilename != nullptr )
 	{
 		glBufferSubData( GL_ARRAY_BUFFER, 2 * size3D, sizeUV, textureCoordinates.data() );	// Copy texture coords.
-		
-		// Create texture, which will be attached to unit GL_TEXTURE1.
+
+		// Create texture, which will be attached to unit GL_TEXTURE + # of lights.
 		glGenTextures( 1, &textureID );
 		glBindTexture( GL_TEXTURE_2D, textureID );
 		

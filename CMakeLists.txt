@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.13)
-project(RTRendering)
+project(PRT)
 
 set(CMAKE_CXX_STANDARD 14)
 
-add_executable(RTRendering application.cpp
+add_executable(PRT application.cpp
         ArcBall/Ball.h ArcBall/Ball.cpp ArcBall/BallAux.h ArcBall/BallAux.cpp ArcBall/BallMath.h ArcBall/BallMath.cpp
         OpenGL.h OpenGL.cpp
         OpenGLGeometry.h OpenGLGeometry.cpp
@@ -13,13 +13,14 @@ add_executable(RTRendering application.cpp
         Object3D.h Object3D.cpp
         Transformations.h Transformations.cpp
 		Light.h Light.cpp
-		stb_image.h stb_image.cpp)
+		stb_image.h stb_image.cpp
+		PRT.h PRT.cpp)
 
-target_link_libraries(RTRendering
+target_link_libraries(PRT
         "-framework OpenGL"
         "armadillo"
         "freetype"
         "glfw")
 
-target_include_directories(RTRendering PUBLIC "/usr/local/include/"
+target_include_directories(PRT PUBLIC "/usr/local/include/"
         "/usr/local/include/freetype2/")

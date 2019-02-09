@@ -17,7 +17,7 @@ out vec2 oTexCoords;									// Interpolate texture coordinates into fragment sh
 
 void main( void )
 {
-	vec4 p = Model * vec4( position.xyz, 1.0 );			// Vertex in world coordinates.
+	vec4 p = Model * vec4( position, 1.0 );				// Vertex in world coordinates.
 	gl_Position = Projection * View * p;
 
 	if( useBlinnPhong )

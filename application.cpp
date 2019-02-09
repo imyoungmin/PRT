@@ -253,6 +253,49 @@ void resizeCallback( GLFWwindow* window, int w, int h )
 }
 
 /**
+ * Load skybox cubemap texture.
+ * @param faces List of texture images for each of the six faces of the cubemap: right, left, top, bottom, back, front.
+ * Texture targets are as follows:
+ * GL_TEXTURE_CUBE_MAP_POSITIVE_X	Right
+ * GL_TEXTURE_CUBE_MAP_NEGATIVE_X	Left
+ * GL_TEXTURE_CUBE_MAP_POSITIVE_Y	Top
+ * GL_TEXTURE_CUBE_MAP_NEGATIVE_Y	Bottom
+ * GL_TEXTURE_CUBE_MAP_POSITIVE_Z	Front
+ * GL_TEXTURE_CUBE_MAP_NEGATIVE_Z	Back
+ * @return Texture ID.
+ */
+GLuint loadCubemap( vector<string> faces )
+{
+	GLuint textureID;
+	glGenTextures( 1, &textureID );
+	glBindTexture( GL_TEXTURE_CUBE_MAP, textureID );
+
+	int width, height, nrChannels;
+	for( int i = 0; i < faces.size(); i++ )
+	{
+		string textureFullFileName = conf::SKYBOXES_FOLDER + faces[i];
+		unsigned char *data = stbi_load( textureFullFileName.c_str(), &width, &height, &nrChannels, 0 );
+		if( data )
+		{
+			glTexImage2D( GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB, width, height, 0, (nrChannels == 4)? GL_RGBA: GL_RGB, GL_UNSIGNED_BYTE, data );
+			stbi_image_free( data );
+		}
+		else
+		{
+			cerr << "Cubemap texture failed to load at path: " << faces[i] << endl;
+			exit( EXIT_FAILURE );
+		}
+	}
+	glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR );
+	glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR );
+	glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE );
+	glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE );
+	glTexParameteri( GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE );	// Third texture dimension.
+
+	return textureID;
+}
+
+/**
  * Render the scene.
  * @param Projection The 4x4 projection matrix to use.
  * @param View The 4x4 view matrix.
@@ -279,10 +322,10 @@ void renderScene( const mat44& Projection, const mat44& View, const mat44& Model
  */
 int main( int argc, const char * argv[] )
 {
-	srand( static_cast<unsigned>( time( 0 ) ) );
+	srand( static_cast<unsigned>( time( nullptr ) ) );
 	
 	gPointOfInterest = { 0, 0, 0 };		// Camera controls globals.
-	gEye = { 3, 7, 12 };
+	gEye = { 0, 5, 10 };
 	gUp = Tx::Y_AXIS;
 	
 	gLocked = false;					// Track if mouse button is pressed down.
@@ -306,8 +349,8 @@ int main( int argc, const char * argv[] )
 	cout << glfwGetVersionString() << endl;
 
 	// Create window object (with screen-dependent size metrics).
-	int windowWidth = 1024;
-	int windowHeight = 1024;
+	int windowWidth = 1080;
+	int windowHeight = 720;
 	window = glfwCreateWindow( windowWidth, windowHeight, "Real-Time Rendering", nullptr, nullptr );
 
 	if( !window )
@@ -342,8 +385,12 @@ int main( int argc, const char * argv[] )
 	// Initialize shaders for geom/sequence drawing program.
 	cout << "Initializing rendering shaders... ";
 	Shaders shaders;
-	GLuint renderingProgram = shaders.compile( conf::SHADERS_FOLDER + "shader.vert", conf::SHADERS_FOLDER + "shader.frag" );		// Usual rendering.
+	GLuint renderingProgram = shaders.compile( conf::SHADERS_FOLDER + "shader.vert", conf::SHADERS_FOLDER + "shader.frag" );
 	cout << "Done!" << endl;
+
+	// Initialize shaders for skybox program.
+	cout << "Initializing skybox shaders... ";
+	GLuint skyboxProgram = shaders.compile( conf::SHADERS_FOLDER + "skybox.vert", conf::SHADERS_FOLDER + "skybox.frag" );
 	
 	//////////////////////////////////////////////// Create lights /////////////////////////////////////////////////////
 	
@@ -354,6 +401,19 @@ int main( int argc, const char * argv[] )
 	const float lHeight = 15;
 	const float lRGB[3] = { 0.8, 0.8, 0.8 };
 	gLights.push_back( Light({ lRadius * sin( theta + phi ), lHeight, lRadius * cos( theta + phi ) }, { lRGB[0], lRGB[1], lRGB[2] }, eye( 4, 4 ), 0 ) );
+
+	//////////////////////////////////////////////// Create skyboxes ///////////////////////////////////////////////////
+
+	vector<string> faces = {
+		"skybox1/right.tga",
+		"skybox1/left.tga",
+		"skybox1/top.tga",
+		"skybox1/bottom.tga",
+		"skybox1/front.tga",
+		"skybox1/back.tga"
+	};
+	GLuint skyboxTexture = loadCubemap( faces );
+	GLint skybox_sampler_location = glGetUniformLocation( skyboxProgram, "skybox" );
 	
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
@@ -380,7 +440,6 @@ int main( int argc, const char * argv[] )
 	{
 		glClearColor( 0.0f, 0.0f, 0.01f, 1.0f );
 		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
-		glEnable( GL_CULL_FACE );
 		
 		////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		
@@ -392,6 +451,10 @@ int main( int argc, const char * argv[] )
 			{ abr[2][0], abr[2][1], abr[2][2], abr[2][3] },
 			{ abr[3][0], abr[3][1], abr[3][2], abr[3][3] } };
 		mat44 Model = ArcBall.t() * Tx::scale( gZoom );
+		mat44 Camera = Tx::lookAt( gEye, gPointOfInterest, gUp );
+
+		glViewport( 0, 0, fbWidth, fbHeight );
+		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 		
 		///////////////////////////////////////// Define new lights' positions /////////////////////////////////////////
 		
@@ -401,17 +464,30 @@ int main( int argc, const char * argv[] )
 				gLights[i].rotateBy( static_cast<float>( 0.01 * M_PI ) );
 		}
 
+		/////////////////////////////////////////////// Render skybox //////////////////////////////////////////////////
+
+		glDepthMask( GL_FALSE );											// Disable depth writing.  This way it's always drawn in background.
+		glCullFace( GL_FRONT );
+
+		ogl.useProgram( skyboxProgram );
+		glActiveTexture( GL_TEXTURE0 );										// Enable texture unit.
+		glBindTexture( GL_TEXTURE_CUBE_MAP, skyboxTexture );
+		glUniform1i( skybox_sampler_location, 0 );
+		mat44 CameraPrime = eye( 4, 4 );									// Obtain the principal 3x3 submatrix of the View transform to remove the translation.
+		CameraPrime.submat( 0, 0, 2, 2 ) = Camera.submat( 0, 0, 2, 2 );
+		ogl.drawCube( Proj, CameraPrime, Model );							// Cube will be colored with cube texture map.
+
+		glCullFace( GL_BACK );
+		glDepthMask( GL_TRUE );
+
 		//////////////////////////////////////////////// Render scene //////////////////////////////////////////////////
 
+		glEnable( GL_CULL_FACE );
 		ogl.useProgram( renderingProgram );					// Set usual rendering program.
-		mat44 Camera = Tx::lookAt( gEye, gPointOfInterest, gUp );
-		
-		glViewport( 0, 0, fbWidth, fbHeight );
-		glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 		
 		// Set and send the lighting properties.
 		for( int i = 0; i < gLightsCount; i++ )
-			ogl.setLighting( gLights[i], Camera, true );
+			ogl.setLighting( gLights[i], Camera );
 		renderScene( Proj, Camera, Model, currentTime );
 
 		/////////////////////////////////////////////// Rendering text /////////////////////////////////////////////////

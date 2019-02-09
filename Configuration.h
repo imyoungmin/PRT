@@ -10,10 +10,11 @@ using namespace std;
  */
 namespace conf
 {
-	const string RESOURCES_FOLDER	= "/Users/youngmin/Documents/CS/Real-Time High Quality Rendering/Projects/RTRendering/RTRendering/Resources/";
+	const string RESOURCES_FOLDER	= "/Users/youngmin/Documents/CS/Real-Time High Quality Rendering/Projects/PRT/PRT/Resources/";
 	const string SHADERS_FOLDER 	= RESOURCES_FOLDER + "shaders/";
 	const string FONTS_FOLDER 		= RESOURCES_FOLDER + "fonts/";
 	const string OBJECTS_FOLDER 	= RESOURCES_FOLDER + "objects/";
+	const string SKYBOXES_FOLDER	= RESOURCES_FOLDER + "skyboxes/";
 }
 
 #endif //OPENGL_CONFIGURATION_H
