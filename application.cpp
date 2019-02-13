@@ -10,6 +10,7 @@
 #include "ArcBall/Ball.h"
 #include "OpenGL.h"
 #include "Transformations.h"
+#include "PRT.h"
 
 using namespace std;
 using namespace std::chrono;
@@ -41,6 +42,8 @@ int fbHeight;
 float gRetinaRatio;						// How many screen dots exist per OpenGL pixel.
 
 OpenGL ogl;								// Initialize application OpenGL.
+
+prt::PRT gPRT;							// Precomputed radiance transfer object.
 
 // Lights.
 vector<Light> gLights;					// Light source objects.
@@ -254,7 +257,6 @@ void resizeCallback( GLFWwindow* window, int w, int h )
 
 /**
  * Load skybox cubemap texture.
- * @param faces List of texture images for each of the six faces of the cubemap: right, left, top, bottom, back, front.
  * Texture targets are as follows:
  * GL_TEXTURE_CUBE_MAP_POSITIVE_X	Right
  * GL_TEXTURE_CUBE_MAP_NEGATIVE_X	Left
@@ -264,26 +266,22 @@ void resizeCallback( GLFWwindow* window, int w, int h )
  * GL_TEXTURE_CUBE_MAP_NEGATIVE_Z	Back
  * @return Texture ID.
  */
-GLuint loadCubemap( vector<string> faces )
+GLuint loadCubemap()
 {
 	GLuint textureID;
 	glGenTextures( 1, &textureID );
 	glBindTexture( GL_TEXTURE_CUBE_MAP, textureID );
 
-	int width, height, nrChannels;
-	for( int i = 0; i < faces.size(); i++ )
+	int width = gPRT.getCubeMapFaceWidth(), nrChannels = gPRT.getCubeMapFaceNrChannels();
+	for( int i = 0; i < 6; i++ )
 	{
-		string textureFullFileName = conf::SKYBOXES_FOLDER + faces[i];
-		// Don't flip vertical here: cubemaps expect image coordinates to start top left and +y to grow downwards.
-		unsigned char *data = stbi_load( textureFullFileName.c_str(), &width, &height, &nrChannels, 0 );
+		// Read data proloaded in PRT object.
+		const unsigned char *data = gPRT.getCubeMapFaceData( i );
 		if( data )
-		{
-			glTexImage2D( static_cast<GLenum>(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i), 0, GL_RGB, width, height, 0, (nrChannels == 4)? GL_RGBA: GL_RGB, GL_UNSIGNED_BYTE, data );
-			stbi_image_free( data );
-		}
+			glTexImage2D( static_cast<GLenum>(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i), 0, GL_RGB, width, width, 0, (nrChannels == 4)? GL_RGBA: GL_RGB, GL_UNSIGNED_BYTE, data );
 		else
 		{
-			cerr << "Cubemap texture failed to load at path: " << faces[i] << endl;
+			cerr << "Cubemap texture failed to load for face " << i << endl;
 			exit( EXIT_FAILURE );
 		}
 	}
@@ -392,7 +390,19 @@ int main( int argc, const char * argv[] )
 	// Initialize shaders for skybox program.
 	cout << "Initializing skybox shaders... ";
 	GLuint skyboxProgram = shaders.compile( conf::SHADERS_FOLDER + "skybox.vert", conf::SHADERS_FOLDER + "skybox.frag" );
-	
+
+	///////////////////////////////// Initialize precomputed radiance transfer object //////////////////////////////////
+
+	vector<string> faces = {
+			"skybox1/right.tga",
+			"skybox1/left.tga",
+			"skybox1/top.tga",
+			"skybox1/bottom.tga",
+			"skybox1/front.tga",
+			"skybox1/back.tga"
+	};
+	gPRT.init( 4, faces );
+
 	//////////////////////////////////////////////// Create lights /////////////////////////////////////////////////////
 	
 	gLightsCount = 1;
@@ -405,15 +415,7 @@ int main( int argc, const char * argv[] )
 
 	//////////////////////////////////////////////// Create skyboxes ///////////////////////////////////////////////////
 
-	vector<string> faces = {
-		"skybox1/right.tga",
-		"skybox1/left.tga",
-		"skybox1/top.tga",
-		"skybox1/bottom.tga",
-		"skybox1/front.tga",
-		"skybox1/back.tga"
-	};
-	GLuint skyboxTexture = loadCubemap( faces );
+	GLuint skyboxTexture = loadCubemap();
 	GLint skybox_sampler_location = glGetUniformLocation( skyboxProgram, "skybox" );
 	
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

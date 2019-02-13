@@ -7,6 +7,8 @@
 
 #include <armadillo>
 #include <random>
+#include "stb_image.h"
+#include "Configuration.h"
 
 using namespace arma;
 using namespace std;
@@ -36,19 +38,29 @@ namespace prt
 	class PRT
 	{
 	private:
-		unsigned int _N_BANDS;			// Number of Spherical-Harmonics bands.
-		size_t _N_SAMPLES;				// Samples on unit sphere (must be a square number).
+		unsigned int _N_BANDS;				// Number of Spherical-Harmonics bands.
+		size_t _N_SAMPLES;					// Samples on unit sphere (must be a square number).
 		vector<Sample> _samples;
 
+		unsigned char* _cubeMapFaces[6];
+		int _cubeMapFaceWidth = -1;
+		int _cubeMapFaceNrChannels = -1;
+
 		void _generateSamples();
-		double _y_lm( unsigned int l, int m, double theta, double phi );
-		double _K_lm( unsigned int l, int m );
-		unsigned int _factorial( unsigned int x );
-		unsigned int _doubleFactorial( int x );
-		double _P_lm( unsigned int l, int m, double x );
+		void _generateCubeMap( const vector<string>& facesFileNames );
+		double _y_lm( int l, int m, double theta, double phi );
+		double _K_lm( int l, int m );
+		int _factorial( int x );
+		int _doubleFactorial( int x );
+		double _P_lm( int l, int m, double x );
 
 	public:
-		explicit PRT( size_t nSamples, unsigned int nBands = 4 );
+		PRT();
+		void init( size_t nSamples, const vector<string>& facesFileNames, unsigned int nBands = 4 );
+		~PRT();
+		const unsigned char* getCubeMapFaceData( int faceIndex ) const;
+		int getCubeMapFaceWidth() const;
+		int getCubeMapFaceNrChannels() const;
 	};
 }
 

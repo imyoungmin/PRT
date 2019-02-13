@@ -7,15 +7,73 @@
 using namespace prt;
 
 /**
- * Constructor.
+ * Default constructor.
+ */
+PRT::PRT() = default;
+
+/**
+ * Initialize precomputed radiance transfer object.
  * @param nSamples Number of samples.
  * @param nBands Number of spherical-harmonics bands.
  */
-PRT::PRT( size_t nSamples, unsigned int nBands )
+void PRT::init( size_t nSamples, const vector<string>& facesFileNames, unsigned int nBands )
 {
 	_N_SAMPLES = static_cast<size_t>( pow( ceil( sqrt( nSamples ) ), 2.0 ) );		// Make sure the number of samples is a square number.
 	_N_BANDS = nBands;
 	_generateSamples();
+	_generateCubeMap( facesFileNames );
+}
+
+/**
+ * Read and store the 6 faces of the environment light as a cube map.
+ * @param facesFileNames
+ */
+void PRT::_generateCubeMap( const vector<string>& facesFileNames )
+{
+	if( facesFileNames.size() != 6 )
+	{
+		cerr << "A cube map expects 6 faces, only " << facesFileNames.size() << " were provided" << endl;
+		exit( EXIT_FAILURE );
+	}
+
+	// Read cube map 6 faces.
+	int width = -1, height = -1;
+	int nrChannels = -1;
+	int faceIndex = 0;
+	for( const string& fileName : facesFileNames )
+	{
+		string faceFullFileName = conf::SKYBOXES_FOLDER + fileName;
+		// Don't flip vertical axis here: cubemaps expect image coordinates to start top left and +y to grow downwards.
+		unsigned char *data = stbi_load( faceFullFileName.c_str(), &width, &height, &nrChannels, 0 );
+		if( data )
+		{
+			if( width != height )						// Check for square cube map faces.
+			{
+				cerr << "Cube map face " << fileName << " is not square: " << width << "x" << height << endl;
+				exit( EXIT_FAILURE );
+			}
+
+			if( _cubeMapFaceWidth < 0 )					// First image?
+			{
+				_cubeMapFaceWidth = width;
+				_cubeMapFaceNrChannels = nrChannels;
+			}
+
+			if( width != _cubeMapFaceWidth || nrChannels != _cubeMapFaceNrChannels )		// Check for compatible face sizes.
+			{
+				cerr << "Cube map face " << fileName << " has an incompatible size/number of channels" << endl;
+				exit( EXIT_FAILURE );
+			}
+
+			_cubeMapFaces[faceIndex] = data;			// Keep data for later projection of "light" onto the sample spherical harmonics functions.
+			faceIndex++;
+		}
+		else
+		{
+			cerr << "Cube map face failed to load at path: " << faceFullFileName << endl;
+			exit( EXIT_FAILURE );
+		}
+	}
 }
 
 /**
@@ -39,9 +97,11 @@ void PRT::_generateSamples()
 
 			// Generate the _N_BANDS^2 spherical-harmonics functions for this sample.
 			vector<double> sh;
-			for( unsigned l = 0; l < _N_BANDS; l++ )
+			for( int l = 0; l < _N_BANDS; l++ )
+			{
 				for( int m = -l; m <= l; m++ )
 					sh.emplace_back( _y_lm( l, m, theta, phi ) );					// The ith function evaluation is at i = l(l+1) + m.
+			}
 
 			_samples.emplace_back( Sample( theta, phi, sh ) );						// Add new sample.
 		}
@@ -56,7 +116,7 @@ void PRT::_generateSamples()
  * @param phi Unit sphere phi angle (latitude).
  * @return Function value.
  */
-double PRT::_y_lm( unsigned int l, int m, double theta, double phi )
+double PRT::_y_lm( int l, int m, double theta, double phi )
 {
 	// We have three cases: m > 0, m < 0, and m = 0.
 	if( m > 0 )
@@ -76,7 +136,7 @@ double PRT::_y_lm( unsigned int l, int m, double theta, double phi )
  * @param x Input value to polynomial.
  * @return Associated Legendre polynomial evaluated at x.
  */
-double PRT::_P_lm( unsigned int l, int m, double x )
+double PRT::_P_lm( int l, int m, double x )
 {
 	if( l == m )
 		return pow( -1, l ) * _doubleFactorial( 2 * l - 1 ) * pow( 1 - x * x, static_cast<double>( l )/2.0 );
@@ -93,7 +153,7 @@ double PRT::_P_lm( unsigned int l, int m, double x )
  * @param m Offset index within a band.
  * @return Normalizing constant.
  */
-double PRT::_K_lm( unsigned int l, int m )
+double PRT::_K_lm( int l, int m )
 {
 	if( m == 0 )
 		return sqrt( ( 2.0 * l + 1.0 ) / ( 4.0 * M_PI ) );
@@ -107,13 +167,13 @@ double PRT::_K_lm( unsigned int l, int m )
  * @param x Input value.
  * @return x!
  */
-unsigned int PRT::_factorial( unsigned int x )
+int PRT::_factorial( int x )
 {
 	if( x <= 1)
 		return 1;
 
-	unsigned int factorial = 1;
-	for( unsigned int i = 2; i <= x; i++ )
+	int factorial = 1;
+	for( int i = 2; i <= x; i++ )
 		factorial *= i;
 	return factorial;
 }
@@ -124,12 +184,56 @@ unsigned int PRT::_factorial( unsigned int x )
  * @param x Input value.
  * @return x!!
  */
-unsigned int PRT::_doubleFactorial( int x )
+int PRT::_doubleFactorial( int x )
 {
 	if( x <= 1 )
 		return 1;
 	return x * _doubleFactorial( x - 2);
 }
+
+/**
+ * Destructor.
+ */
+PRT::~PRT()
+{
+	// Deallocate environment lighting image data (i.e. cubemap faces).
+	for( auto data : _cubeMapFaces )
+	{
+		if( data != nullptr )
+			stbi_image_free( data );
+	}
+}
+
+
+/**
+ * Retrieve a cube map's face data.
+ * @param faceIndex Index in [0,6].
+ * @return Image data.
+ */
+const unsigned char* PRT::getCubeMapFaceData( int faceIndex ) const
+{
+	return _cubeMapFaces[faceIndex];
+}
+
+/**
+ * Get the width (or side length of the square) of any of the cube map's faces.
+ * @return Square side length.
+ */
+int PRT::getCubeMapFaceWidth() const
+{
+	return _cubeMapFaceWidth;
+}
+
+/**
+ * Get the number of channels in the cube map's face images.
+ * @return Number of channels, e.g. 3 for RGB, 4 for RGBA.
+ */
+int PRT::getCubeMapFaceNrChannels() const
+{
+	return _cubeMapFaceNrChannels;
+}
+
+/////////////////////////////////////////////////// Sample class ///////////////////////////////////////////////////////
 
 /**
  * Sample constructor.
