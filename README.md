@@ -1,19 +1,18 @@
-# Real-Time High Quality Rendering Project 1
+# Real-Time High Quality Rendering Project 2
 By Luis Ángel  (임 영민) - All rights reserved (c) 2019
 
 **www.youngmin.com.mx**
 
 ## Functionality
 
-This OpenGL 4.1 project creates a GLFW window and renders on it a scene with geometric and textured 3D object models. 
-The scene also has 3 colored area lights that make objects cast shadows using the **Percentage Closer Soft Shadows**
-procedure.  We further support the **Blinn-Phong Reflectance Model**, and render text using FreeType and textures.
+This OpenGL 4.1 project creates a GLFW window and renders on it a scene with geometries and a 3D object model. 
+We currently support **Precomputed Radiance Transfer** on difuse objects.
 
-To interact with the application click and drag to rotate the scene, press `L` to rotate the light sources, press `C`
-to rotate the camera, or zoom in/out using the mouse scroll button.
+To interact with the application click and drag to rotate the scene, press `L` to rotate the light sources, or zoom 
+in/out using the mouse scroll button.
 
-All of the fonts, shaders, 3D object models, and textures must be located in a `Resources` directory, and you should 
-provide its path in the `Configuration.h` header file.
+All of the fonts, shaders, 3D object models, textures, and cube map faces must be located in a `Resources` directory, 
+and you should provide its path in the `Configuration.h` header file.
 
 ## Requirements
 
@@ -24,8 +23,8 @@ under `/usr/local/lib` (with their respective `include` directories in `/usr/loc
 - FreeType `https://sourceforge.net/projects/freetype/files/`
 - Armadillo `http://arma.sourceforge.net/download.html`
 
-The above libraries may be built using `./configure` - `make` - `sudo make install`, except *GLFW* which requires 
-CMake to be installed (`https://cmake.org/download/`).
+The above libraries may be built using `./configure` - `make` - `sudo make install`, except *GLFW* and *Armadillo* which 
+require CMake to be installed (`https://cmake.org/download/`).
 
 You may create a project using the *CLion* (`https://www.jetbrains.com/cpp/`), which requires XCode to be installed 
 in your macOS system.

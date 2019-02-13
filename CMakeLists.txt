@@ -1,4 +1,7 @@
 cmake_minimum_required(VERSION 3.13)
+
+link_directories(/usr/local/lib)
+
 project(PRT)
 
 set(CMAKE_CXX_STANDARD 14)
