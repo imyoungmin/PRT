@@ -9,6 +9,7 @@
 #include <random>
 #include "stb_image.h"
 #include "Configuration.h"
+#include "Transformations.h"
 
 using namespace arma;
 using namespace std;
@@ -42,12 +43,21 @@ namespace prt
 		size_t _N_SAMPLES;					// Samples on unit sphere (must be a square number).
 		vector<Sample> _samples;
 
-		unsigned char* _cubeMapFaces[6];
+		unsigned char* _cubeMapFaces[6];	// Cube map faces.
 		int _cubeMapFaceWidth = -1;
 		int _cubeMapFaceNrChannels = -1;
+		vec3 _cubeMapFacesNormals[6] = {
+				 Tx::X_AXIS,				// Right.
+				-Tx::X_AXIS,				// Left.
+				 Tx::Y_AXIS,				// Top.
+				-Tx::Y_AXIS,				// Bottom.
+				 Tx::Z_AXIS,				// Front.
+				-Tx::Z_AXIS					// Back.
+		};
 
 		void _generateSamples();
 		void _generateCubeMap( const vector<string>& facesFileNames );
+		void _getPixel( unsigned int x, unsigned int y, unsigned int face, unsigned char* output ) const;
 		double _y_lm( int l, int m, double theta, double phi );
 		double _K_lm( int l, int m );
 		int _factorial( int x );
@@ -61,6 +71,7 @@ namespace prt
 		const unsigned char* getCubeMapFaceData( int faceIndex ) const;
 		int getCubeMapFaceWidth() const;
 		int getCubeMapFaceNrChannels() const;
+		void queryCubeMap( const vec3& query, unsigned char* output ) const;
 	};
 }
 

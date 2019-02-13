@@ -109,6 +109,24 @@ void PRT::_generateSamples()
 }
 
 /**
+ * Read pixel values from a cube map face image.
+ * @param x Column index (left - right).
+ * @param y Row index (top - bottom).
+ * @param face Which face to query.
+ * @param output Result pixel values (triplet, etc), depending on number of channels, in integer format.
+ */
+void PRT::_getPixel( unsigned int x, unsigned int y, unsigned int face, unsigned char* output ) const
+{
+	face = ( face > 5 )? 5 : face;										// Check boundaries.
+	x = ( x > _cubeMapFaceWidth - 1 )? _cubeMapFaceWidth - 1 : x;
+	y = ( y > _cubeMapFaceWidth - 1 )? _cubeMapFaceWidth - 1 : y;
+
+	int pixelPosition = ( y * _cubeMapFaceWidth + x ) * _cubeMapFaceNrChannels;
+	for( int i = 0; i < _cubeMapFaceNrChannels; i ++ )					// Fill in pixel value for each channel.
+		output[i] = _cubeMapFaces[face][pixelPosition + i];				// Caller must allocate space in output array.
+}
+
+/**
  * Spherical harmonics function.
  * @param l Band index.
  * @param m Offset index within a band.
@@ -231,6 +249,82 @@ int PRT::getCubeMapFaceWidth() const
 int PRT::getCubeMapFaceNrChannels() const
 {
 	return _cubeMapFaceNrChannels;
+}
+
+/**
+ * Query pixel value from the environment cube map.
+ * @param query Direction.
+ * @param output Pixel values for each channel registered for the cube map's faces.
+ */
+void PRT::queryCubeMap( const vec3& query, unsigned char* output ) const
+{
+	// First, choose which face to query based on the query direction.
+	vec3 d = normalise( query );
+	unsigned int chosenFace = 6;
+	double chosenFaceCosine = -2;			// Select the face whose normal vector has the smallest angle with the query direction.
+	for( unsigned int i = 0; i < 6; i++ )
+	{
+		double cosine = dot( _cubeMapFacesNormals[i], d );
+		if( cosine < chosenFaceCosine )
+		{
+			chosenFace = i;
+			chosenFaceCosine = cosine;
+		}
+	}
+
+	// Now that we have the face to query, find intersection of query direction (as a ray) with the chosen face plane.
+	vec3 p;
+	double t;
+	double xf, yf;							// The x- and y-coordinates on the chose face at the intersection point, in [0,1].
+	const int L = _cubeMapFaceWidth - 1;
+	switch( chosenFace )
+	{
+		case 0:								// Case RIGHT: plane equation is x = +1.
+			t = 1.0 / d[0];
+			p = t * d;						// Stretch query direction to intersect face plane.
+			xf = ( p[2] + 1.0 ) / 2.0;
+			yf = ( p[1] - 1.0 ) / -2.0;
+			return _getPixel( static_cast<unsigned>( L * ( 1.0 - xf ) ), static_cast<unsigned>( L * yf ), chosenFace, output );
+
+		case 1:								// Case LEFT: plane equation is x = -1.
+			t = -1.0 / d[0];
+			p = t * d;						// Stretch query direction to intersect face plane.
+			xf = ( p[2] - 1.0 ) / -2.0;
+			yf = ( p[1] - 1.0 ) / -2.0;
+			return _getPixel( static_cast<unsigned>( L * ( 1.0 - xf ) ), static_cast<unsigned>( L * yf ), chosenFace, output );
+
+		case 2:								// Case TOP: plane equation is y = +1.
+			t = 1.0 / d[1];
+			p = t * d;						// Stretch query direction to intersect face plane.
+			xf = ( p[0] + 1.0 ) / 2.0;
+			yf = ( p[2] - 1.0 ) / -2.0;
+			return _getPixel( static_cast<unsigned>( L * xf ), static_cast<unsigned>( L * ( 1.0 - yf ) ), chosenFace, output );
+
+		case 3:								// Case BOTTOM: plane equation is y = -1.
+			t = -1.0 / d[1];
+			p = t * d;						// Stretch query direction to intersect face plane.
+			xf = ( p[0] + 1.0 ) / 2.0;
+			yf = ( p[2] + 1.0 ) / 2.0;
+			return _getPixel( static_cast<unsigned>( L * xf ), static_cast<unsigned>( L * ( 1.0 - yf ) ), chosenFace, output );
+
+		case 4:								// Case FRONT: plane equation is z = +1.
+			t = 1.0 / d[2];
+			p = t * d;						// Stretch query direction to intersect face plane.
+			xf = ( p[0] - 1.0 ) / -2.0;
+			yf = ( p[1] - 1.0 ) / -2.0;
+			return _getPixel( static_cast<unsigned>( L * ( 1.0 - xf ) ), static_cast<unsigned>( L * yf ), chosenFace, output );
+
+		case 5:								// Case BACK: plane equation is z = -1.
+			t = -1.0 / d[2];
+			p = t * d;						// Stretch query direction to intersect face plane.
+			xf = ( p[0] + 1.0 ) / 2.0;
+			yf = ( p[1] - 1.0 ) / -2.0;
+			return _getPixel( static_cast<unsigned>( L * ( 1.0 - xf ) ), static_cast<unsigned>( L * yf ), chosenFace, output );
+
+		default:
+			cerr << "Attempting to query a nonexistent face in the cube map" << endl;
+			exit( EXIT_FAILURE );
+	}
 }
 
 /////////////////////////////////////////////////// Sample class ///////////////////////////////////////////////////////
