@@ -390,6 +390,7 @@ int main( int argc, const char * argv[] )
 	// Initialize shaders for skybox program.
 	cout << "Initializing skybox shaders... ";
 	GLuint skyboxProgram = shaders.compile( conf::SHADERS_FOLDER + "skybox.vert", conf::SHADERS_FOLDER + "skybox.frag" );
+	cout << "Done!" << endl;
 
 	///////////////////////////////// Initialize precomputed radiance transfer object //////////////////////////////////
 
@@ -402,6 +403,12 @@ int main( int argc, const char * argv[] )
 			"skybox1/back.tga"
 	};
 	gPRT.init( 4, faces, 3 );
+
+	vector<vec3> vertices, normals;
+	vector<vec2> uvs;
+	Object3D::loadOBJ( "dragon.obj", vertices, uvs, normals );	// Loading objects' original data to be used in PRT.
+	gPRT.addObject( vertices, normals, Tx::translate( 0.0, 0.2, 0.0 ) * Tx::rotate( M_PI/2.0, Tx::Y_AXIS ), { 0.85, 0.85, 0.85 } );
+
 	gPRT.precomputeRadianceTransfer();
 
 	//////////////////////////////////////////////// Create lights /////////////////////////////////////////////////////
@@ -437,7 +444,6 @@ int main( int argc, const char * argv[] )
 	string FPS = "FPS: ";
 
 	ogl.setUsingUniformScaling( true );							// Important! We'll be using uniform scaling in the following scene rendering.
-	ogl.create3DObject( "dragon", "dragon.obj" );
 
 	// Rendering loop.
 	while( !glfwWindowShouldClose( window ) )
@@ -492,7 +498,7 @@ int main( int argc, const char * argv[] )
 		// Set and send the lighting properties.
 		for( int i = 0; i < gLightsCount; i++ )
 			ogl.setLighting( gLights[i], Camera );
-		renderScene( Proj, Camera, Model, currentTime );
+		//renderScene( Proj, Camera, Model, currentTime );
 
 		/////////////////////////////////////////////// Rendering text /////////////////////////////////////////////////
 

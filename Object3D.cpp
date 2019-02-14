@@ -76,7 +76,7 @@ Object3D::Object3D( const char* type, const char* filename, const char* textureF
  * @param outUVs Vector of 2D texture coordinates.
  * @param outNormals Vector of 3D normals.
  */
-void Object3D::loadOBJ( const char* filename, vector<vec3 >& outVertices, vector<vec2>& outUVs, vector<vec3>& outNormals ) const
+void Object3D::loadOBJ( const char* filename, vector<vec3 >& outVertices, vector<vec2>& outUVs, vector<vec3>& outNormals )
 {
 	vector<int> vertexIndices, uvIndices, normalIndices;	// Auxiliary variables.
 	vector<vec3> temp_vertices;
@@ -244,7 +244,7 @@ bool Object3D::hasTexture() const
  */
 GLsizei Object3D::getData( const vector<vec3>& inVs, const vector<vec2>& inUVs, const vector<vec3>& inNs, vector<float>& outVs, vector<float>& outUVs, vector<float>& outNs ) const
 {
-	GLsizei N = static_cast<GLsizei>( inVs.size() );
+	auto N = static_cast<GLsizei>( inVs.size() );
 
 	for( int i = 0; i < N; i++ )
 	{

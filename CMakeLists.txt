@@ -17,7 +17,7 @@ add_executable(PRT application.cpp
         Transformations.h Transformations.cpp
 		Light.h Light.cpp
 		stb_image.h stb_image.cpp
-		PRT.h PRT.cpp)
+		PRT.h PRT.cpp PRTObject3D.cpp PRTObject3D.h)
 
 target_link_libraries(PRT
         "-framework OpenGL"

@@ -10,6 +10,7 @@
 #include "stb_image.h"
 #include "Configuration.h"
 #include "Transformations.h"
+#include "PRTObject3D.h"
 
 using namespace arma;
 using namespace std;
@@ -59,6 +60,8 @@ namespace prt
 
 		vec3* _lightCoefficients;			// Projection of sampled lighting into the _N_BANDS^2 spherical harmonics functions.  Notice: RGB channels.
 
+		vector<Object3D> _objects;			// List of PRT 3D objects to be shade.
+
 		void _generateSamples();
 		void _generateCubeMap( const vector<string>& facesFileNames );
 		void _getPixel( unsigned int x, unsigned int y, unsigned int face, unsigned char* output ) const;
@@ -77,6 +80,7 @@ namespace prt
 		const unsigned char* getCubeMapFaceData( int faceIndex ) const;
 		int getCubeMapFaceWidth() const;
 		int getCubeMapFaceNrChannels() const;
+		void addObject( const vector<vec3>& vertices, const vector<vec3>& normals, const mat44& T, const vec3& color );
 		void precomputeRadianceTransfer();
 	};
 }

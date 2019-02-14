@@ -105,7 +105,7 @@ void PRT::_generateSamples()
 					sh.emplace_back( _y_lm( l, m, theta, phi ) );					// The ith function evaluation is at i = l(l+1) + m.
 			}
 
-			_samples.emplace_back( Sample( theta, phi, sh ) );						// Add new sample.
+			_samples.emplace_back( theta, phi, sh );								// Add new sample.
 		}
 	}
 }
@@ -359,6 +359,20 @@ int PRT::getCubeMapFaceWidth() const
 int PRT::getCubeMapFaceNrChannels() const
 {
 	return _cubeMapFaceNrChannels;
+}
+
+/**
+ * Add a shading 3D object to the PRT scene.
+ * @param vertices List of 3D vertices in object coordinates.
+ * @param normals List of normal vectors in object coordinates.
+ * @param T Transformation matrix that takes object coordinates to world coordinates.
+ * @param color RGB object color (currently transparency is non supported).
+ */
+void PRT::addObject( const vector<vec3>& vertices, const vector<vec3>& normals, const mat44& T, const vec3& color )
+{
+	// New object, with _N_BANDS^2 spherical harmonics projection coefficients per vertex.
+	// Note the use of emplace_back to avoid the extra copy of push_back.
+	_objects.emplace_back( vertices, normals, T, color, _N_BANDS * _N_BANDS );
 }
 
 /**

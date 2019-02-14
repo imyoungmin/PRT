@@ -29,7 +29,7 @@ private:
 public:
 	Object3D();
 	Object3D( const char* type, const char* filename, const char* textureFilename = nullptr );
-	void loadOBJ( const char* filename, vector<vec3 >& outVertices, vector<vec2>& outUVs, vector<vec3>& outNormals ) const;
+	static void loadOBJ( const char* filename, vector<vec3 >& outVertices, vector<vec2>& outUVs, vector<vec3>& outNormals );
 	GLuint getBufferID() const;
 	GLsizei getVerticesCount() const;
 	GLuint getTextureID() const;
