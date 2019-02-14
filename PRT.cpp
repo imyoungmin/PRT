@@ -22,6 +22,8 @@ void PRT::init( size_t nSamples, const vector<string>& facesFileNames, unsigned 
 	_N_BANDS = nBands;
 	_generateSamples();
 	_generateCubeMap( facesFileNames );
+
+	_lightCoefficients = new vec3[ _N_BANDS * _N_BANDS ];							// Allocate memory for the _N_BANDS^2 lighting projection RGB coefficients.
 }
 
 /**
@@ -109,6 +111,86 @@ void PRT::_generateSamples()
 }
 
 /**
+ * Query pixel value from the environment cube map.
+ * @param query Direction.
+ * @param output Pixel values for each channel registered for the cube map's faces.
+ */
+void PRT::_queryCubeMap( const vec3& query, unsigned char* output ) const
+{
+	// First, choose which face to query based on the query direction.
+	vec3 d = normalise( query );
+	unsigned int chosenFace = 6;
+	double chosenFaceCosine = -2;			// Select the face whose normal vector has the smallest angle with the query direction.
+	for( unsigned int i = 0; i < 6; i++ )
+	{
+		double cosine = dot( _cubeMapFacesNormals[i], d );
+		if( cosine > chosenFaceCosine )
+		{
+			chosenFace = i;
+			chosenFaceCosine = cosine;
+		}
+	}
+
+	// Now that we have the face to query, find intersection of query direction (as a ray) with the chosen face plane.
+	vec3 p;
+	double t;
+	double xf, yf;							// The x- and y-coordinates on the chose face at the intersection point, in [0,1].
+	switch( chosenFace )
+	{
+		case 0:								// Case RIGHT: plane equation is x = +1.
+			t = 1.0 / d[0];
+			p = t * d;						// Stretch query direction to intersect face plane.
+			xf = ( p[2] + 1.0 ) / 2.0;
+			yf = ( p[1] - 1.0 ) / -2.0;
+			xf = 1.0 - xf;					// Adjustment.
+			break;
+		case 1:								// Case LEFT: plane equation is x = -1.
+			t = -1.0 / d[0];
+			p = t * d;						// Stretch query direction to intersect face plane.
+			xf = ( p[2] - 1.0 ) / -2.0;
+			yf = ( p[1] - 1.0 ) / -2.0;
+			xf = 1.0 - xf;					// Adjustment.
+			break;
+		case 2:								// Case TOP: plane equation is y = +1.
+			t = 1.0 / d[1];
+			p = t * d;						// Stretch query direction to intersect face plane.
+			xf = ( p[0] + 1.0 ) / 2.0;
+			yf = ( p[2] - 1.0 ) / -2.0;
+			yf = 1.0 - yf;					// Adjustment.
+			break;
+		case 3:								// Case BOTTOM: plane equation is y = -1.
+			t = -1.0 / d[1];
+			p = t * d;						// Stretch query direction to intersect face plane.
+			xf = ( p[0] + 1.0 ) / 2.0;
+			yf = ( p[2] + 1.0 ) / 2.0;
+			yf = 1.0 - yf;					// Adjustment.
+			break;
+		case 4:								// Case FRONT: plane equation is z = +1.
+			t = 1.0 / d[2];
+			p = t * d;						// Stretch query direction to intersect face plane.
+			xf = ( p[0] - 1.0 ) / -2.0;
+			yf = ( p[1] - 1.0 ) / -2.0;
+			xf = 1.0 - xf;					// Adjustment.
+			break;
+		case 5:								// Case BACK: plane equation is z = -1.
+			t = -1.0 / d[2];
+			p = t * d;						// Stretch query direction to intersect face plane.
+			xf = ( p[0] + 1.0 ) / 2.0;
+			yf = ( p[1] - 1.0 ) / -2.0;
+			xf = 1.0 - xf;					// Adjustment.
+			break;
+		default:
+			cerr << "Attempting to query a nonexistent face in the cube map" << endl;
+			exit( EXIT_FAILURE );
+	}
+
+	// Discrete pixel coordinates.
+	auto xd = static_cast<unsigned>( min( floor( _cubeMapFaceWidth * xf ), _cubeMapFaceWidth - 1.0 ) );
+	auto yd = static_cast<unsigned>( min( floor( _cubeMapFaceWidth * yf ), _cubeMapFaceWidth - 1.0 ) );
+	return _getPixel( xd, yd, chosenFace, output );
+}
+
+/**
  * Read pixel values from a cube map face image.
  * @param x Column index (left - right).
  * @param y Row index (top - bottom).
@@ -124,6 +206,31 @@ void PRT::_getPixel( unsigned int x, unsigned int y, unsigned int face, unsigned
 	int pixelPosition = ( y * _cubeMapFaceWidth + x ) * _cubeMapFaceNrChannels;
 	for( int i = 0; i < _cubeMapFaceNrChannels; i ++ )					// Fill in pixel value for each channel.
 		output[i] = _cubeMapFaces[face][pixelPosition + i];				// Caller must allocate space in output array.
+}
+
+/**
+ * Project the sampled environment lighting onto the _N_BANDS^2 spherical harmonics functions.
+ */
+void PRT::_projectLighting()
+{
+	// Initialize lighting coefficients.
+	for( int i = 0; i < _N_BANDS * _N_BANDS; i++ )
+		_lightCoefficients[i] = { 0, 0, 0 };
+
+	// Projection: accumulation process.
+	unsigned char uLight[_cubeMapFaceNrChannels];
+	for( const Sample& sample : _samples )					// For each sample, compute the light projection coefficients.
+	{
+		_queryCubeMap( sample.getPosition(), uLight );		// Light color at the sample position (received from cube map).
+		vec3 light = { uLight[0] / 255.0, uLight[1] / 255.0, uLight[2] / 255.0 };
+		for( int i = 0; i < _N_BANDS * _N_BANDS; i++ )
+			_lightCoefficients[i] += light * sample.getSHValueAt( i );
+	}
+
+	// Projection: final scaling.
+	// c_k \approx \frac{4\pi}{n} \sum_{j=1}^{n}( f(\omega_j) y_k(\omega_j) ).
+	for( int i = 0; i < _N_BANDS * _N_BANDS; i++ )
+		_lightCoefficients[i] *= 4.0 * M_PI / _samples.size();
 }
 
 /**
@@ -220,6 +327,9 @@ PRT::~PRT()
 		if( data != nullptr )
 			stbi_image_free( data );
 	}
+
+	// Deallocate lighting projection coefficients.
+	delete [] _lightCoefficients;
 }
 
 
@@ -252,83 +362,13 @@ int PRT::getCubeMapFaceNrChannels() const
 }
 
 /**
- * Query pixel value from the environment cube map.
- * @param query Direction.
- * @param output Pixel values for each channel registered for the cube map's faces.
+ * Execute the precomputation process.
  */
-void PRT::queryCubeMap( const vec3& query, unsigned char* output ) const
+void PRT::precomputeRadianceTransfer()
 {
-	// First, choose which face to query based on the query direction.
-	vec3 d = normalise( query );
-	unsigned int chosenFace = 6;
-	double chosenFaceCosine = -2;			// Select the face whose normal vector has the smallest angle with the query direction.
-	for( unsigned int i = 0; i < 6; i++ )
-	{
-		double cosine = dot( _cubeMapFacesNormals[i], d );
-		if( cosine > chosenFaceCosine )
-		{
-			chosenFace = i;
-			chosenFaceCosine = cosine;
-		}
-	}
-
-	// Now that we have the face to query, find intersection of query direction (as a ray) with the chosen face plane.
-	vec3 p;
-	double t;
-	double xf, yf;							// The x- and y-coordinates on the chose face at the intersection point, in [0,1].
-	switch( chosenFace )
-	{
-		case 0:								// Case RIGHT: plane equation is x = +1.
-			t = 1.0 / d[0];
-			p = t * d;						// Stretch query direction to intersect face plane.
-			xf = ( p[2] + 1.0 ) / 2.0;
-			yf = ( p[1] - 1.0 ) / -2.0;
-			xf = 1.0 - xf;					// Adjustment.
-			break;
-		case 1:								// Case LEFT: plane equation is x = -1.
-			t = -1.0 / d[0];
-			p = t * d;						// Stretch query direction to intersect face plane.
-			xf = ( p[2] - 1.0 ) / -2.0;
-			yf = ( p[1] - 1.0 ) / -2.0;
-			xf = 1.0 - xf;					// Adjustment.
-			break;
-		case 2:								// Case TOP: plane equation is y = +1.
-			t = 1.0 / d[1];
-			p = t * d;						// Stretch query direction to intersect face plane.
-			xf = ( p[0] + 1.0 ) / 2.0;
-			yf = ( p[2] - 1.0 ) / -2.0;
-			yf = 1.0 - yf;					// Adjustment.
-			break;
-		case 3:								// Case BOTTOM: plane equation is y = -1.
-			t = -1.0 / d[1];
-			p = t * d;						// Stretch query direction to intersect face plane.
-			xf = ( p[0] + 1.0 ) / 2.0;
-			yf = ( p[2] + 1.0 ) / 2.0;
-			yf = 1.0 - yf;					// Adjustment.
-			break;
-		case 4:								// Case FRONT: plane equation is z = +1.
-			t = 1.0 / d[2];
-			p = t * d;						// Stretch query direction to intersect face plane.
-			xf = ( p[0] - 1.0 ) / -2.0;
-			yf = ( p[1] - 1.0 ) / -2.0;
-			xf = 1.0 - xf;					// Adjustment.
-			break;
-		case 5:								// Case BACK: plane equation is z = -1.
-			t = -1.0 / d[2];
-			p = t * d;						// Stretch query direction to intersect face plane.
-			xf = ( p[0] + 1.0 ) / 2.0;
-			yf = ( p[1] - 1.0 ) / -2.0;
-			xf = 1.0 - xf;					// Adjustment.
-			break;
-		default:
-			cerr << "Attempting to query a nonexistent face in the cube map" << endl;
-			exit( EXIT_FAILURE );
-	}
-
-	// Discrete pixel coordinates.
-	auto xd = static_cast<unsigned>( min( floor( _cubeMapFaceWidth * xf ), _cubeMapFaceWidth - 1.0 ) );
-	auto yd = static_cast<unsigned>( min( floor( _cubeMapFaceWidth * yf ), _cubeMapFaceWidth - 1.0 ) );
-	return _getPixel( xd, yd, chosenFace, output );
+	cout << "[PRT] Now projecting sampled lighting...";
+	_projectLighting();
+	cout << "Done!" << endl;
 }
 
 /////////////////////////////////////////////////// Sample class ///////////////////////////////////////////////////////
@@ -347,4 +387,23 @@ Sample::Sample( double theta, double phi, const vector<double>& sh )
 
 	// Position in rectangular coordinates.
 	_position = { sin( _theta ) * cos( _phi ), sin( _theta ) * sin( _phi ), cos( _theta ) };
+}
+
+/**
+ * Get the spherical harmonics value at a given index.
+ * @param index Querying index.
+ * @return Spherical harmonics functional value.
+ */
+double Sample::getSHValueAt( int index ) const
+{
+	return _sh[index];
+}
+
+/**
+ * Get sample position.
+ * @return 3D position.
+ */
+const vec3& Sample::getPosition() const
+{
+	return _position;
 }

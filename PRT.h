@@ -31,6 +31,8 @@ namespace prt
 
 	public:
 		explicit Sample( double theta, double phi, const vector<double>& sh );
+		double getSHValueAt( int index ) const;
+		const vec3& getPosition() const;
 	};
 
 	/**
@@ -55,9 +57,13 @@ namespace prt
 				{  0,  0, -1 }				// Back.
 		};
 
+		vec3* _lightCoefficients;			// Projection of sampled lighting into the _N_BANDS^2 spherical harmonics functions.  Notice: RGB channels.
+
 		void _generateSamples();
 		void _generateCubeMap( const vector<string>& facesFileNames );
 		void _getPixel( unsigned int x, unsigned int y, unsigned int face, unsigned char* output ) const;
+		void _queryCubeMap( const vec3& query, unsigned char* output ) const;
+		void _projectLighting();
 		double _y_lm( int l, int m, double theta, double phi );
 		double _K_lm( int l, int m );
 		int _factorial( int x );
@@ -71,7 +77,7 @@ namespace prt
 		const unsigned char* getCubeMapFaceData( int faceIndex ) const;
 		int getCubeMapFaceWidth() const;
 		int getCubeMapFaceNrChannels() const;
-		void queryCubeMap( const vec3& query, unsigned char* output ) const;
+		void precomputeRadianceTransfer();
 	};
 }
 

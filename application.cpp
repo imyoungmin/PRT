@@ -323,7 +323,7 @@ int main( int argc, const char * argv[] )
 {
 	srand( static_cast<unsigned>( time( nullptr ) ) );
 	
-	gPointOfInterest = { 0, 0, 0 };		// Camera controls globals.
+	gPointOfInterest = { 0, 2, 0 };		// Camera controls globals.
 	gEye = { 0, 5, 10 };
 	gUp = Tx::Y_AXIS;
 	
@@ -401,7 +401,8 @@ int main( int argc, const char * argv[] )
 			"skybox1/front.tga",
 			"skybox1/back.tga"
 	};
-	gPRT.init( 4, faces );
+	gPRT.init( 4, faces, 3 );
+	gPRT.precomputeRadianceTransfer();
 
 	//////////////////////////////////////////////// Create lights /////////////////////////////////////////////////////
 	
