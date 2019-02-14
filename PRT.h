@@ -47,12 +47,12 @@ namespace prt
 		int _cubeMapFaceWidth = -1;
 		int _cubeMapFaceNrChannels = -1;
 		vec3 _cubeMapFacesNormals[6] = {
-				 Tx::X_AXIS,				// Right.
-				-Tx::X_AXIS,				// Left.
-				 Tx::Y_AXIS,				// Top.
-				-Tx::Y_AXIS,				// Bottom.
-				 Tx::Z_AXIS,				// Front.
-				-Tx::Z_AXIS					// Back.
+				{  1,  0,  0 },				// Right.
+				{ -1,  0,  0 },				// Left.
+				{  0,  1,  0 },				// Top.
+				{  0, -1,  0 },				// Bottom.
+				{  0,  0,  1 },				// Front.
+				{  0,  0, -1 }				// Back.
 		};
 
 		void _generateSamples();

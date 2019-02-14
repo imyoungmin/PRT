@@ -437,7 +437,7 @@ int main( int argc, const char * argv[] )
 
 	ogl.setUsingUniformScaling( true );							// Important! We'll be using uniform scaling in the following scene rendering.
 	ogl.create3DObject( "dragon", "dragon.obj" );
-	
+
 	// Rendering loop.
 	while( !glfwWindowShouldClose( window ) )
 	{
@@ -524,7 +524,7 @@ int main( int argc, const char * argv[] )
 	
 	// Delete OpenGL programs.
 	glDeleteProgram( renderingProgram );
-	
+
 	return 0;
 }
 
