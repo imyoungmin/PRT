@@ -240,9 +240,9 @@ void PRT::_projectLighting()
 	int l = 0;
 	for( int i = 0; i < _N_BANDS * _N_BANDS; i++ )
 	{
-		_lightCoefficientsArray[l] = _lightCoefficients[i][0]; l++;		// R.
-		_lightCoefficientsArray[l] = _lightCoefficients[i][1]; l++;		// G.
-		_lightCoefficientsArray[l] = _lightCoefficients[i][2]; l++;		// B.
+		_lightCoefficientsArray[l] = 1/*_lightCoefficients[i][0]*/; l++;		// R.
+		_lightCoefficientsArray[l] = 1/*_lightCoefficients[i][1]*/; l++;		// G.
+		_lightCoefficientsArray[l] = 1/*_lightCoefficients[i][2]*/; l++;		// B.
 	}
 }
 
@@ -276,8 +276,8 @@ void PRT::_unshadowedDiffuseTransferProjection()
 		// c_k \approx \frac{4\pi}{n} \sum_{j=1}^{n}( f(\omega_j) y_k(\omega_j) ).
 		object.scaleSHCoefficients( 4.0 * M_PI / _samples.size() );
 
-		// Load computed coefficients into OpenGL buffer object.
-		object.loadSHCoefficientsIntoVBO();
+		// Load computed coefficients into a texture.
+		object.loadSHCoefficientsIntoTexture();
 	}
 }
 
@@ -474,29 +474,24 @@ void PRT::renderObjects( const mat44& Projection, const mat44& Camera, const mat
 	{
 		glBindBuffer( GL_ARRAY_BUFFER, o.getBufferID() );
 
-		// Set up our vertex, normals, and spherical harmonics coefficients attributes.
-		GLint normal_location = glGetAttribLocation( _renderingProgram, "normal" );
+		// Set up our vertex and spherical harmonics coefficients attributes and uniforms.
 		GLint position_location = glGetAttribLocation( _renderingProgram, "position" );
-		GLint shCoefficients_location = glGetAttribLocation( _renderingProgram, "shCoefficients" );
-		if( position_location != -1  && normal_location != -1 && shCoefficients_location != -1 )
+		GLint shCoefficients_location = glGetUniformLocation( _renderingProgram, "shCoefficients" );
+		if( position_location != -1  && shCoefficients_location != -1 )
 		{
-			glEnableVertexAttribArray( static_cast<GLuint>( position_location ) );			// Send vertices.
-			glVertexAttribPointer( static_cast<GLuint>( position_location ), ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET( 0 ) );
+			glEnableVertexAttribArray( static_cast<GLuint>( position_location ) );	// Send vertices.
+			glVertexAttribPointer( static_cast<GLuint>( position_location ), ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 0, nullptr );
 
-			size_t offset = sizeof(float) * o.getVerticesCount() * ELEMENTS_PER_VERTEX;
-
-			glEnableVertexAttribArray( static_cast<GLuint>( normal_location ) );			// Send normals.
-			glVertexAttribPointer( static_cast<GLuint>( normal_location ), ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET( offset ) );
-
-			glEnableVertexAttribArray( static_cast<GLuint>( shCoefficients_location ) );	// Send spherical harmonics coefficients.
-			glVertexAttribPointer( static_cast<GLuint>( shCoefficients_location ), ELEMENTS_PER_VERTEX * _N_BANDS * _N_BANDS, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET( 2 * offset ) );
+			glActiveTexture( GL_TEXTURE0 );											// Send the spherical harmonics coefficients.
+			glBindTexture( GL_TEXTURE_BUFFER, o.getTBOTextureID() );
+			glTexBuffer( GL_TEXTURE_BUFFER, GL_R32F, o.getTBOID() );
+			glUniform1i( shCoefficients_location, 0 );
 
 			// Draw triangles.
 			glDrawArrays( GL_TRIANGLES, 0, o.getVerticesCount() );
 
 			// Disable attribute arrays.
 			glDisableVertexAttribArray( static_cast<GLuint>( position_location ) );
-			glDisableVertexAttribArray( static_cast<GLuint>( normal_location ) );
 		}
 	}
 }

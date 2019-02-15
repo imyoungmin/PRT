@@ -47,35 +47,37 @@ Object3D::Object3D( const vector<vec3>& vertices, const vector<vec3>& normals, c
 	vector<float> normalComponents;
 	_verticesCount = _getData( vertexPositions, normalComponents );
 
-	// Allocate space for vertices, normals, and spherical harmonics projection coefficients.
+	// Allocate space for vertices.
 	const size_t size3D = sizeof(float) * vertexPositions.size();							// Size of 3D arrays in bytes.
-	const size_t sizeSH = sizeof(float) * _verticesCount * _nrCoefficients * 3;				// Make space for 3 channels per coefficient: RGB-RGB-RGB-...
-	glBufferData( GL_ARRAY_BUFFER, 2 * size3D + sizeSH, nullptr, GL_DYNAMIC_DRAW );			// Dynamic as we'll copy sh coefficients later.
-	glBufferSubData( GL_ARRAY_BUFFER, 0, size3D, vertexPositions.data() );					// Copy positions.
-	glBufferSubData( GL_ARRAY_BUFFER, size3D, size3D, normalComponents.data() );			// Copy normals.
+	glBufferData( GL_ARRAY_BUFFER, size3D, vertexPositions.data(), GL_STATIC_DRAW );		// Don't need to send the normals.
 }
 
 /**
- * Copy spherical harmonics coefficients into OpenGL buffer object.
+ * Copy spherical harmonics coefficients into a texture.
  * This function should be called whenever we have projected the transfer function for this object.
+ * We use a texture buffer object because we can't send an array of floats for each vertex to the vertex shader.
+ * How to: https://gist.github.com/roxlu/5090067.
  */
-void Object3D::loadSHCoefficientsIntoVBO()
+void Object3D::loadSHCoefficientsIntoTexture()
 {
+	glGenBuffers( 1, &_tboID );								// Create a texture buffer object
+	glBindBuffer( GL_TEXTURE_BUFFER, _tboID );
+	glGenTextures( 1, &_tboTextureID );
+
 	vector<float> coeffs;
 	for( const vec3* coefficients : _shCoefficients )		// From vertex 0 -> (total - 1).
-	{
+	{														// Create a row per vertex in texture.
 		for( int i = 0; i < _nrCoefficients; i++ )
 		{
-			coeffs.push_back( coefficients[i][0] );			// Load three channels: R.
-			coeffs.push_back( coefficients[i][1] );			// G.
-			coeffs.push_back( coefficients[i][2] );			// B.
+			coeffs.push_back( 0.1/*coefficients[i][0]*/ );			// Load three channels: R.
+			coeffs.push_back( 0.05/*coefficients[i][1]*/ );			// G.
+			coeffs.push_back( 0/*coefficients[i][2]*/ );			// B.
 		}
 	}
 
-	glBindBuffer( GL_ARRAY_BUFFER, _bufferID );								// Activate buffer to copy coefficients.
-	const size_t size3D = sizeof(float) * _verticesCount * 3;				// Size of 3D arrays in bytes: vertices and normals.
-	const size_t sizeSH = sizeof(float) * coeffs.size();
-	glBufferSubData( GL_ARRAY_BUFFER, 2 * size3D, sizeSH, coeffs.data() );	// Copy data: it's now available in buffer for rendering.
+	// Copy data into texture buffer object: it's now available in texture for rendering.
+	glBufferData( GL_TEXTURE_BUFFER, sizeof(float) * coeffs.size(), coeffs.data(), GL_STATIC_DRAW );
+	glBindBuffer( GL_TEXTURE_BUFFER, 0 );
 
 	// We can now free the coefficients' memory from the application.
 	_deallocateGeometries();
@@ -88,6 +90,24 @@ void Object3D::loadSHCoefficientsIntoVBO()
 GLuint Object3D::getBufferID() const
 {
 	return _bufferID;
+}
+
+/**
+ * Retrieve the OpenGL TBO for spherical harmonics coefficients.
+ * @return TBO ID.
+ */
+GLuint Object3D::getTBOID() const
+{
+	return _tboID;
+}
+
+/**
+ * Retrieve the OpenGL texture associated with the TBO for spherical harmonics coefficients.
+ * @return Texture TBO ID.
+ */
+GLuint Object3D::getTBOTextureID() const
+{
+	return _tboTextureID;
 }
 
 /**

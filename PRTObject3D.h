@@ -42,6 +42,8 @@ namespace prt
 		unsigned int _nrCoefficients;			// Number of spherical harmonics coefficients per vertex per channel.
 		GLsizei _verticesCount;					// Number of vertices.
 		GLuint _bufferID;						// Buffer ID given by OpenGL.
+		GLuint _tboID;							// We use TBOs to store the spherical harmonics coefficients for each vertex.
+		GLuint _tboTextureID;					// Associated texture for accessing TBO.
 
 		GLsizei _getData( vector<float>& outVs, vector<float>& outNs ) const;
 		void _deallocateGeometries();
@@ -49,11 +51,13 @@ namespace prt
 	public:
 		explicit Object3D( const vector<vec3>& vertices, const vector<vec3>& normals, const mat44& T, const vec3& color, unsigned int nrCoefficients );
 		GLuint getBufferID() const;
+		GLuint getTBOID() const;
+		GLuint getTBOTextureID() const;
 		GLsizei getVerticesCount() const;
 		void resetSHCoefficients();
 		void scaleSHCoefficients( double s );
 		void accumulateSHCoefficients( unsigned int vIndex, unsigned int shIndex, const vec3& value );
-		void loadSHCoefficientsIntoVBO();
+		void loadSHCoefficientsIntoTexture();
 		const vec3& getVertexPositionAt( unsigned int index ) const;
 		const vec3& getVertexNormalAt( unsigned int index ) const;
 		const vec3& getColor() const;

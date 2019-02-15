@@ -382,16 +382,18 @@ int main( int argc, const char * argv[] )
 	ogl.init();
 	Shaders shaders;
 
-	// Intialize shaders for precomputed radiance transfer.
-	cout << "Initializing PRT shaders... ";
-	GLuint prtProgram = shaders.compile( conf::SHADERS_FOLDER + "prt.vert", conf::SHADERS_FOLDER + "prt.frag" );
-	glUseProgram( prtProgram );
-	int n = glGetAttribLocation( prtProgram, "normal2" );
-	cout << "Done!" << endl;
-
 	// Initialize shaders for skybox program.
 	cout << "Initializing skybox shaders... ";
 	GLuint skyboxProgram = shaders.compile( conf::SHADERS_FOLDER + "skybox.vert", conf::SHADERS_FOLDER + "skybox.frag" );
+	cout << "Done!" << endl;
+
+//	cout << "Initializing usual rendering shaders... ";
+//	GLuint renderingProgram = shaders.compile( conf::SHADERS_FOLDER + "shader.vert", conf::SHADERS_FOLDER + "shader.frag" );
+//	cout << "Done!" << endl;
+
+	// Intialize shaders for precomputed radiance transfer.
+	cout << "Initializing PRT shaders... ";
+	GLuint prtProgram = shaders.compile( conf::SHADERS_FOLDER + "prt.vert", conf::SHADERS_FOLDER + "prt.frag" );
 	cout << "Done!" << endl;
 
 	///////////////////////////////// Initialize precomputed radiance transfer object //////////////////////////////////
@@ -408,8 +410,8 @@ int main( int argc, const char * argv[] )
 
 	vector<vec3> vertices, normals;
 	vector<vec2> uvs;
-	Object3D::loadOBJ( "dragon.obj", vertices, uvs, normals );	// Loading objects' original data to be used in PRT.
-	gPRT.addObject( vertices, normals, Tx::translate( 0.0, 0.2, 0.0 ) * Tx::rotate( M_PI/2.0, Tx::Y_AXIS ), { 0.85, 0.85, 0.85 } );
+	Object3D::loadOBJ( "cube.obj", vertices, uvs, normals );	// Loading objects' original data to be used in PRT.
+	gPRT.addObject( vertices, normals, eye( 4,4 ), { 0.85, 0.85, 0.85 } );
 
 	gPRT.precomputeRadianceTransfer();
 
@@ -445,6 +447,7 @@ int main( int argc, const char * argv[] )
 	float transcurredTimePerFrame;
 	string FPS = "FPS: ";
 
+//	ogl.create3DObject( "dragon", "dragon.obj" );
 	ogl.setUsingUniformScaling( true );							// Important! We'll be using uniform scaling in the following scene rendering.
 
 	// Rendering loop.
@@ -481,6 +484,9 @@ int main( int argc, const char * argv[] )
 		glEnable( GL_CULL_FACE );
 		glUseProgram( prtProgram );
 		gPRT.renderObjects( Proj, Camera, Model );
+//		ogl.useProgram( renderingProgram );
+//		ogl.setLighting( gLights[0], Camera );
+//		renderScene( Proj, Camera, Model, currentTime );
 
 		/////////////////////////////////////////////// Render skybox //////////////////////////////////////////////////
 
@@ -493,7 +499,7 @@ int main( int argc, const char * argv[] )
 		glUniform1i( skybox_sampler_location, 0 );
 		mat44 CameraPrime = eye( 4, 4 );									// Obtain the principal 3x3 submatrix of the View transform to remove the translation.
 		CameraPrime.submat( 0, 0, 2, 2 ) = Camera.submat( 0, 0, 2, 2 );
-		ogl.drawCube( Proj, CameraPrime, Model );							// Cube will be colored with cube texture map.
+//		ogl.drawCube( Proj, CameraPrime, Model );							// Cube will be colored with cube texture map.
 
 		glCullFace( GL_BACK );
 		glDepthMask( GL_TRUE );

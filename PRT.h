@@ -20,7 +20,6 @@ using namespace std;
  */
 namespace prt
 {
-	#define BUFFER_OFFSET(bytes) 	((void*) (bytes))
 	#define ELEMENTS_PER_VERTEX		3
 	#define ELEMENTS_PER_MATRIX		16
 
