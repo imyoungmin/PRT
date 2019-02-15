@@ -53,7 +53,32 @@ Object3D::Object3D( const vector<vec3>& vertices, const vector<vec3>& normals, c
 	glBufferData( GL_ARRAY_BUFFER, 2 * size3D + sizeSH, nullptr, GL_DYNAMIC_DRAW );			// Dynamic as we'll copy sh coefficients later.
 	glBufferSubData( GL_ARRAY_BUFFER, 0, size3D, vertexPositions.data() );					// Copy positions.
 	glBufferSubData( GL_ARRAY_BUFFER, size3D, size3D, normalComponents.data() );			// Copy normals.
-	// TODO: Copy sh coefficients into buffer.
+}
+
+/**
+ * Copy spherical harmonics coefficients into OpenGL buffer object.
+ * This function should be called whenever we have projected the transfer function for this object.
+ */
+void Object3D::loadSHCoefficientsIntoVBO()
+{
+	vector<float> coeffs;
+	for( const vec3* coefficients : _shCoefficients )		// From vertex 0 -> (total - 1).
+	{
+		for( int i = 0; i < _nrCoefficients; i++ )
+		{
+			coeffs.push_back( coefficients[i][0] );			// Load three channels: R.
+			coeffs.push_back( coefficients[i][1] );			// G.
+			coeffs.push_back( coefficients[i][2] );			// B.
+		}
+	}
+
+	glBindBuffer( GL_ARRAY_BUFFER, _bufferID );								// Activate buffer to copy coefficients.
+	const size_t size3D = sizeof(float) * _verticesCount * 3;				// Size of 3D arrays in bytes: vertices and normals.
+	const size_t sizeSH = sizeof(float) * coeffs.size();
+	glBufferSubData( GL_ARRAY_BUFFER, 2 * size3D, sizeSH, coeffs.data() );	// Copy data: it's now available in buffer for rendering.
+
+	// We can now free the coefficients' memory from the application.
+	_deallocateGeometries();
 }
 
 /**
@@ -166,13 +191,26 @@ GLsizei Object3D::_getData( vector<float>& outVs, vector<float>& outNs ) const
 }
 
 /**
+ * Free memory for unnecessary geometries.
+ */
+void Object3D::_deallocateGeometries()
+{
+	for( int i = 0; i < _verticesCount; i++ )
+	{
+		if( _shCoefficients[i] )
+		{
+			delete [] _shCoefficients[i];			// Deallocate arrays of coefficients for RGB for each vertex.
+			_shCoefficients[i] = nullptr;
+		}
+	}
+}
+
+/**
  * Destructor.
  */
 Object3D::~Object3D()
 {
-	// Deallocate arrays of coefficients for RGB for each vertex.
-	for( const vec3* coefficients : _shCoefficients )
-		delete [] coefficients;
+	_deallocateGeometries();
 }
 
 

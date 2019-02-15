@@ -14,16 +14,20 @@ PRT::PRT() = default;
 /**
  * Initialize precomputed radiance transfer object.
  * @param nSamples Number of samples.
+ * @param facesFileNames File names of cube map faces.
+ * @param program Rendering program.
  * @param nBands Number of spherical-harmonics bands.
  */
-void PRT::init( size_t nSamples, const vector<string>& facesFileNames, unsigned int nBands )
+void PRT::init( size_t nSamples, const vector<string>& facesFileNames, GLuint program, unsigned int nBands )
 {
 	_N_SAMPLES = static_cast<size_t>( pow( ceil( sqrt( nSamples ) ), 2.0 ) );		// Make sure the number of samples is a square number.
 	_N_BANDS = nBands;
 	_generateSamples();
 	_generateCubeMap( facesFileNames );
+	_renderingProgram = program;
 
 	_lightCoefficients = new vec3[ _N_BANDS * _N_BANDS ];							// Allocate memory for the _N_BANDS^2 lighting projection RGB coefficients.
+	_lightCoefficientsArray = new float[ _N_BANDS * _N_BANDS * ELEMENTS_PER_VERTEX ];
 }
 
 /**
@@ -231,6 +235,15 @@ void PRT::_projectLighting()
 	// c_k \approx \frac{4\pi}{n} \sum_{j=1}^{n}( f(\omega_j) y_k(\omega_j) ).
 	for( int i = 0; i < _N_BANDS * _N_BANDS; i++ )
 		_lightCoefficients[i] *= 4.0 * M_PI / _samples.size();
+
+	// Flatten (copy) coefficients into a linear array to be sent to shaders.
+	int l = 0;
+	for( int i = 0; i < _N_BANDS * _N_BANDS; i++ )
+	{
+		_lightCoefficientsArray[l] = _lightCoefficients[i][0]; l++;		// R.
+		_lightCoefficientsArray[l] = _lightCoefficients[i][1]; l++;		// G.
+		_lightCoefficientsArray[l] = _lightCoefficients[i][2]; l++;		// B.
+	}
 }
 
 /**
@@ -262,6 +275,9 @@ void PRT::_unshadowedDiffuseTransferProjection()
 		// Projection: final scaling.
 		// c_k \approx \frac{4\pi}{n} \sum_{j=1}^{n}( f(\omega_j) y_k(\omega_j) ).
 		object.scaleSHCoefficients( 4.0 * M_PI / _samples.size() );
+
+		// Load computed coefficients into OpenGL buffer object.
+		object.loadSHCoefficientsIntoVBO();
 	}
 }
 
@@ -362,6 +378,7 @@ PRT::~PRT()
 
 	// Deallocate lighting projection coefficients.
 	delete [] _lightCoefficients;
+	delete [] _lightCoefficientsArray;
 }
 
 
@@ -412,13 +429,76 @@ void PRT::addObject( const vector<vec3>& vertices, const vector<vec3>& normals, 
  */
 void PRT::precomputeRadianceTransfer()
 {
-	cout << "[PRT] Now projecting sampled lighting...";
+	cout << "[PRT] Now projecting sampled lighting... ";
 	_projectLighting();
 	cout << "Done!" << endl;
 
-	cout << "[PRT] Now projecting unshadowed diffuse transfer function...";
+	cout << "[PRT] Now projecting unshadowed diffuse transfer function... ";
 	_unshadowedDiffuseTransferProjection();
 	cout << "Done!" << endl;
+}
+
+/**
+ * Render scene objects.
+ * @param Projection The 4x4 projection matrix.
+ * @param Camera The 4x4 view matrix.
+ * @param Model The 4x4 (interaction) model matrix.
+ */
+void PRT::renderObjects( const mat44& Projection, const mat44& Camera, const mat44& Model )
+{
+	// Send constant/uniform information to shaders.
+	int model_location = glGetUniformLocation( _renderingProgram, "Model" );						// Transformation matrices.
+	int view_location = glGetUniformLocation( _renderingProgram, "View");
+	int proj_location = glGetUniformLocation( _renderingProgram, "Projection" );
+
+	int lightCoeffs_location = glGetUniformLocation( _renderingProgram, "lightSHCoefficients" );	// And light spherical harmonics coefficients.
+
+	if( model_location != -1 && view_location != -1 && proj_location != -1 && lightCoeffs_location != -1 )
+	{
+		float model_matrix[ELEMENTS_PER_MATRIX];
+		Tx::toOpenGLMatrix( model_matrix, Model );
+		glUniformMatrix4fv( model_location, 1, GL_FALSE, model_matrix );		// Send model matrix.
+
+		float view_matrix[ELEMENTS_PER_MATRIX];
+		Tx::toOpenGLMatrix( view_matrix, Camera );
+		glUniformMatrix4fv( view_location, 1, GL_FALSE, view_matrix );			// Send view matrix.
+
+		float proj_matrix[ELEMENTS_PER_MATRIX];
+		Tx::toOpenGLMatrix( proj_matrix, Projection );
+		glUniformMatrix4fv( proj_location, 1, GL_FALSE, proj_matrix );			// Send projection matrix.
+
+		glUniform3fv( lightCoeffs_location, _N_BANDS * _N_BANDS, _lightCoefficientsArray );
+	}
+
+	for( const Object3D& o : _objects )
+	{
+		glBindBuffer( GL_ARRAY_BUFFER, o.getBufferID() );
+
+		// Set up our vertex, normals, and spherical harmonics coefficients attributes.
+		GLint normal_location = glGetAttribLocation( _renderingProgram, "normal" );
+		GLint position_location = glGetAttribLocation( _renderingProgram, "position" );
+		GLint shCoefficients_location = glGetAttribLocation( _renderingProgram, "shCoefficients" );
+		if( position_location != -1  && normal_location != -1 && shCoefficients_location != -1 )
+		{
+			glEnableVertexAttribArray( static_cast<GLuint>( position_location ) );			// Send vertices.
+			glVertexAttribPointer( static_cast<GLuint>( position_location ), ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET( 0 ) );
+
+			size_t offset = sizeof(float) * o.getVerticesCount() * ELEMENTS_PER_VERTEX;
+
+			glEnableVertexAttribArray( static_cast<GLuint>( normal_location ) );			// Send normals.
+			glVertexAttribPointer( static_cast<GLuint>( normal_location ), ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET( offset ) );
+
+			glEnableVertexAttribArray( static_cast<GLuint>( shCoefficients_location ) );	// Send spherical harmonics coefficients.
+			glVertexAttribPointer( static_cast<GLuint>( shCoefficients_location ), ELEMENTS_PER_VERTEX * _N_BANDS * _N_BANDS, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET( 2 * offset ) );
+
+			// Draw triangles.
+			glDrawArrays( GL_TRIANGLES, 0, o.getVerticesCount() );
+
+			// Disable attribute arrays.
+			glDisableVertexAttribArray( static_cast<GLuint>( position_location ) );
+			glDisableVertexAttribArray( static_cast<GLuint>( normal_location ) );
+		}
+	}
 }
 
 /////////////////////////////////////////////////// Sample class ///////////////////////////////////////////////////////

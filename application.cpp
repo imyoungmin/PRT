@@ -380,11 +380,13 @@ int main( int argc, const char * argv[] )
 	///////////////////////////////////// Intialize OpenGL and rendering shaders ///////////////////////////////////////
 	
 	ogl.init();
-	
-	// Initialize shaders for geom/sequence drawing program.
-	cout << "Initializing rendering shaders... ";
 	Shaders shaders;
-	GLuint renderingProgram = shaders.compile( conf::SHADERS_FOLDER + "shader.vert", conf::SHADERS_FOLDER + "shader.frag" );
+
+	// Intialize shaders for precomputed radiance transfer.
+	cout << "Initializing PRT shaders... ";
+	GLuint prtProgram = shaders.compile( conf::SHADERS_FOLDER + "prt.vert", conf::SHADERS_FOLDER + "prt.frag" );
+	glUseProgram( prtProgram );
+	int n = glGetAttribLocation( prtProgram, "normal2" );
 	cout << "Done!" << endl;
 
 	// Initialize shaders for skybox program.
@@ -402,7 +404,7 @@ int main( int argc, const char * argv[] )
 			"skybox1/front.tga",
 			"skybox1/back.tga"
 	};
-	gPRT.init( 4, faces, 3 );
+	gPRT.init( 4, faces, prtProgram );
 
 	vector<vec3> vertices, normals;
 	vector<vec2> uvs;
@@ -474,6 +476,12 @@ int main( int argc, const char * argv[] )
 				gLights[i].rotateBy( static_cast<float>( 0.01 * M_PI ) );
 		}
 
+		//////////////////////////////////////////////// Render scene //////////////////////////////////////////////////
+
+		glEnable( GL_CULL_FACE );
+		glUseProgram( prtProgram );
+		gPRT.renderObjects( Proj, Camera, Model );
+
 		/////////////////////////////////////////////// Render skybox //////////////////////////////////////////////////
 
 		glDepthMask( GL_FALSE );											// Disable depth writing.  This way it's always drawn in background.
@@ -489,16 +497,6 @@ int main( int argc, const char * argv[] )
 
 		glCullFace( GL_BACK );
 		glDepthMask( GL_TRUE );
-
-		//////////////////////////////////////////////// Render scene //////////////////////////////////////////////////
-
-		glEnable( GL_CULL_FACE );
-		ogl.useProgram( renderingProgram );					// Set usual rendering program.
-		
-		// Set and send the lighting properties.
-		for( int i = 0; i < gLightsCount; i++ )
-			ogl.setLighting( gLights[i], Camera );
-		//renderScene( Proj, Camera, Model, currentTime );
 
 		/////////////////////////////////////////////// Rendering text /////////////////////////////////////////////////
 
@@ -530,7 +528,8 @@ int main( int argc, const char * argv[] )
 	glfwTerminate();
 	
 	// Delete OpenGL programs.
-	glDeleteProgram( renderingProgram );
+	glDeleteProgram( skyboxProgram );
+	glDeleteProgram( prtProgram );
 
 	return 0;
 }

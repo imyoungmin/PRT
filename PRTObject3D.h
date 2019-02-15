@@ -44,6 +44,7 @@ namespace prt
 		GLuint _bufferID;						// Buffer ID given by OpenGL.
 
 		GLsizei _getData( vector<float>& outVs, vector<float>& outNs ) const;
+		void _deallocateGeometries();
 
 	public:
 		explicit Object3D( const vector<vec3>& vertices, const vector<vec3>& normals, const mat44& T, const vec3& color, unsigned int nrCoefficients );
@@ -52,6 +53,7 @@ namespace prt
 		void resetSHCoefficients();
 		void scaleSHCoefficients( double s );
 		void accumulateSHCoefficients( unsigned int vIndex, unsigned int shIndex, const vec3& value );
+		void loadSHCoefficientsIntoVBO();
 		const vec3& getVertexPositionAt( unsigned int index ) const;
 		const vec3& getVertexNormalAt( unsigned int index ) const;
 		const vec3& getColor() const;

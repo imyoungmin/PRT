@@ -20,6 +20,10 @@ using namespace std;
  */
 namespace prt
 {
+	#define BUFFER_OFFSET(bytes) 	((void*) (bytes))
+	#define ELEMENTS_PER_VERTEX		3
+	#define ELEMENTS_PER_MATRIX		16
+
 	/**
 	 * Store information on samples on the unit sphere, corresponding to the infinitely far environment light.
 	 */
@@ -59,8 +63,11 @@ namespace prt
 		};
 
 		vec3* _lightCoefficients;			// Projection of sampled lighting into the _N_BANDS^2 spherical harmonics functions.  Notice: RGB channels.
+		float* _lightCoefficientsArray;		// Flat version of light coefficients, given in RGBRGBRGB...RGB
 
 		vector<Object3D> _objects;			// List of PRT 3D objects to be shade.
+
+		GLuint _renderingProgram;			// OpenGL rendering program.
 
 		void _generateSamples();
 		void _generateCubeMap( const vector<string>& facesFileNames );
@@ -76,13 +83,14 @@ namespace prt
 
 	public:
 		PRT();
-		void init( size_t nSamples, const vector<string>& facesFileNames, unsigned int nBands = 4 );
+		void init( size_t nSamples, const vector<string>& facesFileNames, GLuint program, unsigned int nBands = 3 );
 		~PRT();
 		const unsigned char* getCubeMapFaceData( int faceIndex ) const;
 		int getCubeMapFaceWidth() const;
 		int getCubeMapFaceNrChannels() const;
 		void addObject( const vector<vec3>& vertices, const vector<vec3>& normals, const mat44& T, const vec3& color );
 		void precomputeRadianceTransfer();
+		void renderObjects( const mat44& Projection, const mat44& Camera, const mat44& Model );
 	};
 }
 
