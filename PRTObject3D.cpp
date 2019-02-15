@@ -17,6 +17,9 @@ using namespace prt;
  */
 Object3D::Object3D( const vector<vec3>& vertices, const vector<vec3>& normals, const mat44& T, const vec3& color, unsigned int nrCoefficients )
 {
+	_nrCoefficients = nrCoefficients;
+	_color = color;
+
 	// Transform vertices and normals to world coordinates and register triangles with references.
 	mat33 R = Tx::getInvTransModelView( T, false );		// Don't assume uniform scaling: to transform the normals.
 
@@ -30,7 +33,7 @@ Object3D::Object3D( const vector<vec3>& vertices, const vector<vec3>& normals, c
 			_normals.emplace_back( R * normals[i] );
 
 			// Allocate space for spherical harmonics coefficients for each vertex (for the three channels RGB).
-			_shCoefficients.push_back( new vec3[nrCoefficients] );
+			_shCoefficients.push_back( new vec3[_nrCoefficients] );
 		}
 
 		// Register triangle.
@@ -46,7 +49,7 @@ Object3D::Object3D( const vector<vec3>& vertices, const vector<vec3>& normals, c
 
 	// Allocate space for vertices, normals, and spherical harmonics projection coefficients.
 	const size_t size3D = sizeof(float) * vertexPositions.size();							// Size of 3D arrays in bytes.
-	const size_t sizeSH = sizeof(float) * _verticesCount * nrCoefficients * 3;				// Make space for 3 channels per coefficient: RGB-RGB-RGB-...
+	const size_t sizeSH = sizeof(float) * _verticesCount * _nrCoefficients * 3;				// Make space for 3 channels per coefficient: RGB-RGB-RGB-...
 	glBufferData( GL_ARRAY_BUFFER, 2 * size3D + sizeSH, nullptr, GL_DYNAMIC_DRAW );			// Dynamic as we'll copy sh coefficients later.
 	glBufferSubData( GL_ARRAY_BUFFER, 0, size3D, vertexPositions.data() );					// Copy positions.
 	glBufferSubData( GL_ARRAY_BUFFER, size3D, size3D, normalComponents.data() );			// Copy normals.
@@ -69,6 +72,71 @@ GLuint Object3D::getBufferID() const
 GLsizei Object3D::getVerticesCount() const
 {
 	return _verticesCount;
+}
+
+/**
+ * Reset spherical harmonics coefficients for each vertex and for each channel.
+ */
+void Object3D::resetSHCoefficients()
+{
+	for( int i = 0; i < _verticesCount; i++ )	// For each vertex in the object, initialize the corresponding coefficients.
+	{
+		for( int j = 0; j < _nrCoefficients; j++ )
+			_shCoefficients[i][j] = { 0, 0, 0 };
+	}
+}
+
+/**
+ * Scale all of the spherical harmonics cofficients in this object by a scalar.
+ * @param s Scale factor.
+ */
+void Object3D::scaleSHCoefficients( double s )
+{
+	for( int i = 0; i < _verticesCount; i++ )
+	{
+		for( int j = 0; j < _nrCoefficients; j++ )
+			_shCoefficients[i][j] *= s;
+	}
+}
+
+/**
+ * Accumulate spherical harmonics coefficients at a given vertex and spherical harmonics index.
+ * @param vIndex Vertex index.
+ * @param shIndex Spherical harmonics index.
+ * @param value Operand to add.
+ */
+void Object3D::accumulateSHCoefficients( unsigned int vIndex, unsigned int shIndex, const vec3& value )
+{
+	_shCoefficients[vIndex][shIndex] += value;
+}
+
+/**
+ * Retrieve a vertex position.
+ * @param index Vertex index.
+ * @return 3D position.
+ */
+const vec3& Object3D::getVertexPositionAt( unsigned int index ) const
+{
+	return _vertices[ index ];
+}
+
+/**
+ * Retrieve a vertex normal.
+ * @param index Normal index.
+ * @return 3D normal vector.
+ */
+const vec3& Object3D::getVertexNormalAt( unsigned int index ) const
+{
+	return _normals[ index ];
+}
+
+/**
+ * Retrieve object's color.
+ * @return RGB vector.
+ */
+const vec3& Object3D::getColor() const
+{
+	return _color;
 }
 
 /**

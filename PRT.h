@@ -67,6 +67,7 @@ namespace prt
 		void _getPixel( unsigned int x, unsigned int y, unsigned int face, unsigned char* output ) const;
 		void _queryCubeMap( const vec3& query, unsigned char* output ) const;
 		void _projectLighting();
+		void _unshadowedDiffuseTransferProjection();
 		double _y_lm( int l, int m, double theta, double phi );
 		double _K_lm( int l, int m );
 		int _factorial( int x );

@@ -234,6 +234,38 @@ void PRT::_projectLighting()
 }
 
 /**
+ * Project the objects' vertices onto the _N_BANDS^2 spherical harmonics functions.
+ * This is for the unshadow diffuse transfer function.
+ */
+void PRT::_unshadowedDiffuseTransferProjection()
+{
+	for( Object3D& object : _objects )
+	{
+		object.resetSHCoefficients();
+		const vec3& color = object.getColor();
+
+		// Diffuse transfer projection at each vertex.
+		for( unsigned int i = 0; i < object.getVerticesCount(); i++ )
+		{
+			const vec3& n = object.getVertexNormalAt( i );			// Vertex normal.
+			for( const Sample& sample : _samples )					// For each (\theta, \phi) direction.
+			{
+				double h = max( 0.0, dot( n, sample.getPosition() ) );		// Geometric function.
+				if( h > 0 )
+				{
+					for( unsigned int j = 0; j < _N_BANDS * _N_BANDS; j++ )
+						object.accumulateSHCoefficients( i, j, sample.getSHValueAt( j ) * h * color );
+				}
+			}
+		}
+
+		// Projection: final scaling.
+		// c_k \approx \frac{4\pi}{n} \sum_{j=1}^{n}( f(\omega_j) y_k(\omega_j) ).
+		object.scaleSHCoefficients( 4.0 * M_PI / _samples.size() );
+	}
+}
+
+/**
  * Spherical harmonics function.
  * @param l Band index.
  * @param m Offset index within a band.
@@ -382,6 +414,10 @@ void PRT::precomputeRadianceTransfer()
 {
 	cout << "[PRT] Now projecting sampled lighting...";
 	_projectLighting();
+	cout << "Done!" << endl;
+
+	cout << "[PRT] Now projecting unshadowed diffuse transfer function...";
+	_unshadowedDiffuseTransferProjection();
 	cout << "Done!" << endl;
 }
 

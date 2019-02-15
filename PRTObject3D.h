@@ -39,6 +39,7 @@ namespace prt
 		vector<vec3> _normals;
 		vector<vec3*> _shCoefficients;			// Spherical harmonics projection coefficients for each color channel.
 		vec3 _color;							// Object uniform color: currently supported only RGB (no transparency).
+		unsigned int _nrCoefficients;			// Number of spherical harmonics coefficients per vertex per channel.
 		GLsizei _verticesCount;					// Number of vertices.
 		GLuint _bufferID;						// Buffer ID given by OpenGL.
 
@@ -48,6 +49,12 @@ namespace prt
 		explicit Object3D( const vector<vec3>& vertices, const vector<vec3>& normals, const mat44& T, const vec3& color, unsigned int nrCoefficients );
 		GLuint getBufferID() const;
 		GLsizei getVerticesCount() const;
+		void resetSHCoefficients();
+		void scaleSHCoefficients( double s );
+		void accumulateSHCoefficients( unsigned int vIndex, unsigned int shIndex, const vec3& value );
+		const vec3& getVertexPositionAt( unsigned int index ) const;
+		const vec3& getVertexNormalAt( unsigned int index ) const;
+		const vec3& getColor() const;
 		~Object3D();
 	};
 }
