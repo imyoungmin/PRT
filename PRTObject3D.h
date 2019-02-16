@@ -8,6 +8,7 @@
 #include <OpenGL/gl3.h>
 #include <armadillo>
 #include "Transformations.h"
+#include "PRTConstants.h"
 
 using namespace std;
 using namespace arma;
@@ -34,12 +35,12 @@ namespace prt
 	class Object3D
 	{
 	private:
+		string _name;							// Object name.
 		vector<Triangle> _triangles;			// Geometry data: vertices, normals, and triangles with references.
 		vector<vec3> _vertices;
 		vector<vec3> _normals;
 		vector<vec3*> _shCoefficients;			// Spherical harmonics projection coefficients for each color channel.
 		vec3 _color;							// Object uniform color: currently supported only RGB (no transparency).
-		unsigned int _nrCoefficients;			// Number of spherical harmonics coefficients per vertex per channel.
 		GLsizei _verticesCount;					// Number of vertices.
 		GLuint _bufferID;						// Buffer ID given by OpenGL.
 		GLuint _tboID;							// We use TBOs to store the spherical harmonics coefficients for each vertex.
@@ -49,7 +50,7 @@ namespace prt
 		void _deallocateGeometries();
 
 	public:
-		explicit Object3D( const vector<vec3>& vertices, const vector<vec3>& normals, const mat44& T, const vec3& color, unsigned int nrCoefficients );
+		explicit Object3D( const char* name, const vector<vec3>& vertices, const vector<vec3>& normals, const mat44& T, const vec3& color );
 		GLuint getBufferID() const;
 		GLuint getTBOID() const;
 		GLuint getTBOTextureID() const;

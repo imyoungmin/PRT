@@ -373,6 +373,11 @@ int main( int argc, const char * argv[] )
 	gRetinaRatio = static_cast<float>( fbWidth ) / windowWidth;
 	cout << "Retina pixel ratio: " << gRetinaRatio << endl;
 	resizeCallback( window, fbWidth, fbHeight );
+
+	// Check maximum texture buffer size.
+	int limit;
+	glGetIntegerv( GL_MAX_TEXTURE_BUFFER_SIZE, &limit );
+	cout << "Maximum texture buffer size: " << limit << endl;
 	
 	gArcBall = new BallData;						// Initialize arcball.
 	resetArcBall();
@@ -406,12 +411,12 @@ int main( int argc, const char * argv[] )
 			"skybox1/front.tga",
 			"skybox1/back.tga"
 	};
-	gPRT.init( 4, faces, prtProgram );
+	gPRT.init( 64, faces, prtProgram );
 
 	vector<vec3> vertices, normals;
 	vector<vec2> uvs;
 	Object3D::loadOBJ( "cube.obj", vertices, uvs, normals );	// Loading objects' original data to be used in PRT.
-	gPRT.addObject( vertices, normals, eye( 4,4 ), { 0.85, 0.85, 0.85 } );
+	gPRT.addObject( "Cube", vertices, normals, eye( 4,4 ), { 1.0, 1.0, 1.0 } );
 
 	gPRT.precomputeRadianceTransfer();
 

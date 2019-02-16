@@ -16,18 +16,16 @@ PRT::PRT() = default;
  * @param nSamples Number of samples.
  * @param facesFileNames File names of cube map faces.
  * @param program Rendering program.
- * @param nBands Number of spherical-harmonics bands.
  */
-void PRT::init( size_t nSamples, const vector<string>& facesFileNames, GLuint program, unsigned int nBands )
+void PRT::init( size_t nSamples, const vector<string>& facesFileNames, GLuint program )
 {
 	_N_SAMPLES = static_cast<size_t>( pow( ceil( sqrt( nSamples ) ), 2.0 ) );		// Make sure the number of samples is a square number.
-	_N_BANDS = nBands;
 	_generateSamples();
 	_generateCubeMap( facesFileNames );
 	_renderingProgram = program;
 
-	_lightCoefficients = new vec3[ _N_BANDS * _N_BANDS ];							// Allocate memory for the _N_BANDS^2 lighting projection RGB coefficients.
-	_lightCoefficientsArray = new float[ _N_BANDS * _N_BANDS * ELEMENTS_PER_VERTEX ];
+	_lightCoefficients = new vec3[ N_BANDS * N_BANDS ];								// Allocate memory for the _N_BANDS^2 lighting projection RGB coefficients.
+	_lightCoefficientsArray = new float[ N_BANDS * N_BANDS * PRT_ELEMENTS_PER_VERTEX ];
 }
 
 /**
@@ -101,9 +99,9 @@ void PRT::_generateSamples()
 			double theta = 2.0 * acos( sqrt( 1.0 - x ) );							// Spherical coordinates: \theta, \phi \in [0, 2\pi)
 			double phi = 2.0 * M_PI * y;
 
-			// Generate the _N_BANDS^2 spherical-harmonics functions for this sample.
+			// Generate the N_BANDS^2 spherical-harmonics functions for this sample.
 			vector<double> sh;
-			for( int l = 0; l < _N_BANDS; l++ )
+			for( int l = 0; l < N_BANDS; l++ )
 			{
 				for( int m = -l; m <= l; m++ )
 					sh.emplace_back( _y_lm( l, m, theta, phi ) );					// The ith function evaluation is at i = l(l+1) + m.
@@ -112,6 +110,8 @@ void PRT::_generateSamples()
 			_samples.emplace_back( theta, phi, sh );								// Add new sample.
 		}
 	}
+
+	cout << "[PRT] Finished generating " << _samples.size() << " samples with " << N_BANDS * N_BANDS << " spherical harmonics functional values each!" << endl;
 }
 
 /**
@@ -213,12 +213,12 @@ void PRT::_getPixel( unsigned int x, unsigned int y, unsigned int face, unsigned
 }
 
 /**
- * Project the sampled environment lighting onto the _N_BANDS^2 spherical harmonics functions.
+ * Project the sampled environment lighting onto the N_BANDS^2 spherical harmonics functions.
  */
 void PRT::_projectLighting()
 {
 	// Initialize lighting coefficients.
-	for( int i = 0; i < _N_BANDS * _N_BANDS; i++ )
+	for( int i = 0; i < N_BANDS * N_BANDS; i++ )
 		_lightCoefficients[i] = { 0, 0, 0 };
 
 	// Projection: accumulation process.
@@ -227,27 +227,27 @@ void PRT::_projectLighting()
 	{
 		_queryCubeMap( sample.getPosition(), uLight );		// Light color at the sample position (received from cube map).
 		vec3 light = { uLight[0] / 255.0, uLight[1] / 255.0, uLight[2] / 255.0 };
-		for( int i = 0; i < _N_BANDS * _N_BANDS; i++ )
+		for( int i = 0; i < N_BANDS * N_BANDS; i++ )
 			_lightCoefficients[i] += light * sample.getSHValueAt( i );
 	}
 
 	// Projection: final scaling.
 	// c_k \approx \frac{4\pi}{n} \sum_{j=1}^{n}( f(\omega_j) y_k(\omega_j) ).
-	for( int i = 0; i < _N_BANDS * _N_BANDS; i++ )
+	for( int i = 0; i < N_BANDS * N_BANDS; i++ )
 		_lightCoefficients[i] *= 4.0 * M_PI / _samples.size();
 
 	// Flatten (copy) coefficients into a linear array to be sent to shaders.
 	int l = 0;
-	for( int i = 0; i < _N_BANDS * _N_BANDS; i++ )
+	for( int i = 0; i < N_BANDS * N_BANDS; i++ )
 	{
-		_lightCoefficientsArray[l] = 1/*_lightCoefficients[i][0]*/; l++;		// R.
-		_lightCoefficientsArray[l] = 1/*_lightCoefficients[i][1]*/; l++;		// G.
-		_lightCoefficientsArray[l] = 1/*_lightCoefficients[i][2]*/; l++;		// B.
+		_lightCoefficientsArray[l] = _lightCoefficients[i][0]; l++;		// R.
+		_lightCoefficientsArray[l] = _lightCoefficients[i][1]; l++;		// G.
+		_lightCoefficientsArray[l] = _lightCoefficients[i][2]; l++;		// B.
 	}
 }
 
 /**
- * Project the objects' vertices onto the _N_BANDS^2 spherical harmonics functions.
+ * Project the objects' vertices onto the N_BANDS^2 spherical harmonics functions.
  * This is for the unshadow diffuse transfer function.
  */
 void PRT::_unshadowedDiffuseTransferProjection()
@@ -266,7 +266,7 @@ void PRT::_unshadowedDiffuseTransferProjection()
 				double h = max( 0.0, dot( n, sample.getPosition() ) );		// Geometric function.
 				if( h > 0 )
 				{
-					for( unsigned int j = 0; j < _N_BANDS * _N_BANDS; j++ )
+					for( unsigned int j = 0; j < N_BANDS * N_BANDS; j++ )
 						object.accumulateSHCoefficients( i, j, sample.getSHValueAt( j ) * h * color );
 				}
 			}
@@ -274,7 +274,8 @@ void PRT::_unshadowedDiffuseTransferProjection()
 
 		// Projection: final scaling.
 		// c_k \approx \frac{4\pi}{n} \sum_{j=1}^{n}( f(\omega_j) y_k(\omega_j) ).
-		object.scaleSHCoefficients( 4.0 * M_PI / _samples.size() );
+		// Also, T_{DU}(L_p) = (\rho_p/\pi) \int L_p(s) H_{Np}(s) ds. -- so we divide by \pi.
+		object.scaleSHCoefficients( 4.0 / _samples.size() );
 
 		// Load computed coefficients into a texture.
 		object.loadSHCoefficientsIntoTexture();
@@ -412,16 +413,17 @@ int PRT::getCubeMapFaceNrChannels() const
 
 /**
  * Add a shading 3D object to the PRT scene.
+ * @param name Object (preferrably unique) name.
  * @param vertices List of 3D vertices in object coordinates.
  * @param normals List of normal vectors in object coordinates.
  * @param T Transformation matrix that takes object coordinates to world coordinates.
  * @param color RGB object color (currently transparency is non supported).
  */
-void PRT::addObject( const vector<vec3>& vertices, const vector<vec3>& normals, const mat44& T, const vec3& color )
+void PRT::addObject( const char* name, const vector<vec3>& vertices, const vector<vec3>& normals, const mat44& T, const vec3& color )
 {
 	// New object, with _N_BANDS^2 spherical harmonics projection coefficients per vertex.
 	// Note the use of emplace_back to avoid the extra copy of push_back.
-	_objects.emplace_back( vertices, normals, T, color, _N_BANDS * _N_BANDS );
+	_objects.emplace_back( name, vertices, normals, T, color );
 }
 
 /**
@@ -429,13 +431,13 @@ void PRT::addObject( const vector<vec3>& vertices, const vector<vec3>& normals, 
  */
 void PRT::precomputeRadianceTransfer()
 {
-	cout << "[PRT] Now projecting sampled lighting... ";
+	cout << "[PRT] Now projecting sampled lighting... " << endl;
 	_projectLighting();
-	cout << "Done!" << endl;
+	cout << "[PRT] Done!" << endl;
 
-	cout << "[PRT] Now projecting unshadowed diffuse transfer function... ";
+	cout << "[PRT] Now projecting unshadowed diffuse transfer function... " << endl;
 	_unshadowedDiffuseTransferProjection();
-	cout << "Done!" << endl;
+	cout << "[PRT] Done!" << endl;
 }
 
 /**
@@ -455,19 +457,19 @@ void PRT::renderObjects( const mat44& Projection, const mat44& Camera, const mat
 
 	if( model_location != -1 && view_location != -1 && proj_location != -1 && lightCoeffs_location != -1 )
 	{
-		float model_matrix[ELEMENTS_PER_MATRIX];
+		float model_matrix[PRT_ELEMENTS_PER_MATRIX];
 		Tx::toOpenGLMatrix( model_matrix, Model );
 		glUniformMatrix4fv( model_location, 1, GL_FALSE, model_matrix );		// Send model matrix.
 
-		float view_matrix[ELEMENTS_PER_MATRIX];
+		float view_matrix[PRT_ELEMENTS_PER_MATRIX];
 		Tx::toOpenGLMatrix( view_matrix, Camera );
 		glUniformMatrix4fv( view_location, 1, GL_FALSE, view_matrix );			// Send view matrix.
 
-		float proj_matrix[ELEMENTS_PER_MATRIX];
+		float proj_matrix[PRT_ELEMENTS_PER_MATRIX];
 		Tx::toOpenGLMatrix( proj_matrix, Projection );
 		glUniformMatrix4fv( proj_location, 1, GL_FALSE, proj_matrix );			// Send projection matrix.
 
-		glUniform3fv( lightCoeffs_location, _N_BANDS * _N_BANDS, _lightCoefficientsArray );
+		glUniform3fv( lightCoeffs_location, N_BANDS * N_BANDS, _lightCoefficientsArray );
 	}
 
 	for( const Object3D& o : _objects )
@@ -480,7 +482,7 @@ void PRT::renderObjects( const mat44& Projection, const mat44& Camera, const mat
 		if( position_location != -1  && shCoefficients_location != -1 )
 		{
 			glEnableVertexAttribArray( static_cast<GLuint>( position_location ) );	// Send vertices.
-			glVertexAttribPointer( static_cast<GLuint>( position_location ), ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 0, nullptr );
+			glVertexAttribPointer( static_cast<GLuint>( position_location ), PRT_ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 0, nullptr );
 
 			glActiveTexture( GL_TEXTURE0 );											// Send the spherical harmonics coefficients.
 			glBindTexture( GL_TEXTURE_BUFFER, o.getTBOTextureID() );

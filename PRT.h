@@ -10,6 +10,7 @@
 #include "stb_image.h"
 #include "Configuration.h"
 #include "Transformations.h"
+#include "PRTConstants.h"
 #include "PRTObject3D.h"
 
 using namespace arma;
@@ -20,18 +21,15 @@ using namespace std;
  */
 namespace prt
 {
-	#define ELEMENTS_PER_VERTEX		3
-	#define ELEMENTS_PER_MATRIX		16
-
 	/**
 	 * Store information on samples on the unit sphere, corresponding to the infinitely far environment light.
 	 */
 	class Sample
 	{
 	private:
-		vec3 _position;					// Position in rectangular coordinates [x,y,z].
-		double _theta, _phi;			// Spherical coordinates: \theta, \phi -- \rho = 1.
-		vector<double> _sh;				// Spherical harmonics function evaluations: _N_BANDS^2.
+		vec3 _position;						// Position in rectangular coordinates [x,y,z].
+		double _theta, _phi;				// Spherical coordinates: \theta, \phi -- \rho = 1.
+		vector<double> _sh;					// Spherical harmonics function evaluations: _N_BANDS^2.
 
 	public:
 		explicit Sample( double theta, double phi, const vector<double>& sh );
@@ -45,7 +43,6 @@ namespace prt
 	class PRT
 	{
 	private:
-		unsigned int _N_BANDS;				// Number of Spherical-Harmonics bands.
 		size_t _N_SAMPLES;					// Samples on unit sphere (must be a square number).
 		vector<Sample> _samples;
 
@@ -82,12 +79,12 @@ namespace prt
 
 	public:
 		PRT();
-		void init( size_t nSamples, const vector<string>& facesFileNames, GLuint program, unsigned int nBands = 3 );
+		void init( size_t nSamples, const vector<string>& facesFileNames, GLuint program );
 		~PRT();
 		const unsigned char* getCubeMapFaceData( int faceIndex ) const;
 		int getCubeMapFaceWidth() const;
 		int getCubeMapFaceNrChannels() const;
-		void addObject( const vector<vec3>& vertices, const vector<vec3>& normals, const mat44& T, const vec3& color );
+		void addObject( const char* name, const vector<vec3>& vertices, const vector<vec3>& normals, const mat44& T, const vec3& color );
 		void precomputeRadianceTransfer();
 		void renderObjects( const mat44& Projection, const mat44& Camera, const mat44& Model );
 	};

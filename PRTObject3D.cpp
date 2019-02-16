@@ -8,16 +8,16 @@ using namespace prt;
 
 /**
  * Constructor.
+ * @param name Object name.
  * @param vertices Object vertices.
  * @param normals Object normal vectors.
  * @param T Transformation matrix that takes object coordinates into world coordinates.
  * @param color Object RGB color.
- * @param nrCoefficients Number of spherical harmonics projection coefficients.
  * @return
  */
-Object3D::Object3D( const vector<vec3>& vertices, const vector<vec3>& normals, const mat44& T, const vec3& color, unsigned int nrCoefficients )
+Object3D::Object3D( const char* name, const vector<vec3>& vertices, const vector<vec3>& normals, const mat44& T, const vec3& color )
 {
-	_nrCoefficients = nrCoefficients;
+	_name = string( name );
 	_color = color;
 
 	// Transform vertices and normals to world coordinates and register triangles with references.
@@ -33,7 +33,7 @@ Object3D::Object3D( const vector<vec3>& vertices, const vector<vec3>& normals, c
 			_normals.emplace_back( R * normals[i] );
 
 			// Allocate space for spherical harmonics coefficients for each vertex (for the three channels RGB).
-			_shCoefficients.push_back( new vec3[_nrCoefficients] );
+			_shCoefficients.push_back( new vec3[N_BANDS * N_BANDS] );
 		}
 
 		// Register triangle.
@@ -67,17 +67,28 @@ void Object3D::loadSHCoefficientsIntoTexture()
 	vector<float> coeffs;
 	for( const vec3* coefficients : _shCoefficients )		// From vertex 0 -> (total - 1).
 	{														// Create a row per vertex in texture.
-		for( int i = 0; i < _nrCoefficients; i++ )
+		for( int i = 0; i < N_BANDS * N_BANDS; i++ )
 		{
-			coeffs.push_back( 0.1/*coefficients[i][0]*/ );			// Load three channels: R.
-			coeffs.push_back( 0.05/*coefficients[i][1]*/ );			// G.
-			coeffs.push_back( 0/*coefficients[i][2]*/ );			// B.
+			coeffs.push_back( coefficients[i][0] );			// Load three channels: R.
+			coeffs.push_back( coefficients[i][1] );			// G.
+			coeffs.push_back( coefficients[i][2] );			// B.
 		}
 	}
 
+	// Verify maximum size of texture buffer object.
+	int limit;
+	glGetIntegerv( GL_MAX_TEXTURE_BUFFER_SIZE, &limit );
+	size_t coefficientsSize = sizeof(float) * coeffs.size();
+	if( coefficientsSize > limit )
+	{
+		cerr << "[PRTObject3D][" << _name << "] Cannot write to TBO to store spherical harmonics coefficients.  Max size exceeded: " << coefficientsSize << endl;
+		exit( EXIT_FAILURE );
+	}
+
 	// Copy data into texture buffer object: it's now available in texture for rendering.
-	glBufferData( GL_TEXTURE_BUFFER, sizeof(float) * coeffs.size(), coeffs.data(), GL_STATIC_DRAW );
+	glBufferData( GL_TEXTURE_BUFFER, coefficientsSize, coeffs.data(), GL_STATIC_DRAW );
 	glBindBuffer( GL_TEXTURE_BUFFER, 0 );
+	cout << "[PRTObject3D][" << _name << "] Successfully wrote " << coeffs.size() << " spherical harmonics coefficients to TBO!" << endl;
 
 	// We can now free the coefficients' memory from the application.
 	_deallocateGeometries();
@@ -126,7 +137,7 @@ void Object3D::resetSHCoefficients()
 {
 	for( int i = 0; i < _verticesCount; i++ )	// For each vertex in the object, initialize the corresponding coefficients.
 	{
-		for( int j = 0; j < _nrCoefficients; j++ )
+		for( int j = 0; j < N_BANDS * N_BANDS; j++ )
 			_shCoefficients[i][j] = { 0, 0, 0 };
 	}
 }
@@ -139,7 +150,7 @@ void Object3D::scaleSHCoefficients( double s )
 {
 	for( int i = 0; i < _verticesCount; i++ )
 	{
-		for( int j = 0; j < _nrCoefficients; j++ )
+		for( int j = 0; j < N_BANDS * N_BANDS; j++ )
 			_shCoefficients[i][j] *= s;
 	}
 }
