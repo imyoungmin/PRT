@@ -61,7 +61,7 @@ namespace prt
 		vec3* _lightCoefficients;			// Projection of sampled lighting into the _N_BANDS^2 spherical harmonics functions.  Notice: RGB channels.
 		float* _lightCoefficientsArray;		// Flat version of light coefficients, given in RGBRGBRGB...RGB
 
-		vector<Object3D> _objects;			// List of PRT 3D objects to be shade.
+		vector<unique_ptr<Object3D>> _objects;			// List of PRT 3D objects to be shade.
 
 		GLuint _renderingProgram;			// OpenGL rendering program.
 

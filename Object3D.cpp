@@ -78,6 +78,11 @@ Object3D::Object3D( const char* type, const char* filename, const char* textureF
  */
 void Object3D::loadOBJ( const char* filename, vector<vec3 >& outVertices, vector<vec2>& outUVs, vector<vec3>& outNormals )
 {
+	// Clear contents of ouput vector containers to start afresh.
+	outVertices.clear();
+	outUVs.clear();
+	outNormals.clear();
+
 	vector<int> vertexIndices, uvIndices, normalIndices;	// Auxiliary variables.
 	vector<vec3> temp_vertices;
 	vector<vec2> temp_uvs;

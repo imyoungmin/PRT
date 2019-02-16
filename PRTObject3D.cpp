@@ -30,7 +30,7 @@ Object3D::Object3D( const char* name, const vector<vec3>& vertices, const vector
 		{
 			vec4 hTV = T * vec4( { vertices[i][0], vertices[i][1], vertices[i][2], 1.0 } );
 			_vertices.emplace_back( hTV.head( 3 ) );
-			_normals.emplace_back( R * normals[i] );
+			_normals.emplace_back( normalise( R * normals[i] ) );
 
 			// Allocate space for spherical harmonics coefficients for each vertex (for the three channels RGB).
 			_shCoefficients.push_back( new vec3[N_BANDS * N_BANDS] );
@@ -203,6 +203,10 @@ const vec3& Object3D::getColor() const
  */
 GLsizei Object3D::_getData( vector<float>& outVs, vector<float>& outNs ) const
 {
+	// Clear contents of vector containers.
+	outVs.clear();
+	outNs.clear();
+
 	auto N = static_cast<GLsizei>( _vertices.size() );
 
 	for( int i = 0; i < N; i++ )
@@ -242,6 +246,7 @@ void Object3D::_deallocateGeometries()
 Object3D::~Object3D()
 {
 	_deallocateGeometries();
+	cout << "[PRT][" << _name << "] destroyed!" << endl;
 }
 
 

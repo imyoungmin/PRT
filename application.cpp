@@ -295,25 +295,6 @@ GLuint loadCubemap()
 }
 
 /**
- * Render the scene.
- * @param Projection The 4x4 projection matrix to use.
- * @param View The 4x4 view matrix.
- * @param Model Any previously built 4x4 model matrix (usually containing current zoom and scene rotation as provided by arcball).
- * @param currentTime Current step.
- */
-void renderScene( const mat44& Projection, const mat44& View, const mat44& Model, double currentTime )
-{
-	ogl.setColor( 0.85, 0.85, 0.85 );					// Dragon.
-	ogl.render3DObject( Projection, View, Model * Tx::translate( 0.0, 0.2, 0.0 ) * Tx::rotate( M_PI/2.0, Tx::Y_AXIS ), "dragon" );
-
-	// Dragon circular base.
-	ogl.setColor( 0.35, 0.18, 0.15, 1.0, 32.0 );
-	ogl.drawCylinder( Projection, View, Model * Tx::rotate( -M_PI_2, Tx::X_AXIS ) * Tx::scale( 2.5, 2.5, 0.2 ) );
-	ogl.setColor( 0.23, 0.22, 0.25, 1.0, 32.0 );
-	ogl.drawCylinder( Projection, View, Model * Tx::rotate( -M_PI_2, Tx::X_AXIS ) * Tx::scale( 3.0, 3.0, 0.1 ) );
-}
-
-/**
  * Application main function.
  * @param argc Number of input arguments.
  * @param argv Input arguments.
@@ -323,8 +304,8 @@ int main( int argc, const char * argv[] )
 {
 	srand( static_cast<unsigned>( time( nullptr ) ) );
 	
-	gPointOfInterest = { 0, 2, 0 };		// Camera controls globals.
-	gEye = { 0, 5, 10 };
+	gPointOfInterest = { 0, 1, 0 };		// Camera controls globals.
+	gEye = { 6, 5, 8 };
 	gUp = Tx::Y_AXIS;
 	
 	gLocked = false;					// Track if mouse button is pressed down.
@@ -392,10 +373,6 @@ int main( int argc, const char * argv[] )
 	GLuint skyboxProgram = shaders.compile( conf::SHADERS_FOLDER + "skybox.vert", conf::SHADERS_FOLDER + "skybox.frag" );
 	cout << "Done!" << endl;
 
-//	cout << "Initializing usual rendering shaders... ";
-//	GLuint renderingProgram = shaders.compile( conf::SHADERS_FOLDER + "shader.vert", conf::SHADERS_FOLDER + "shader.frag" );
-//	cout << "Done!" << endl;
-
 	// Intialize shaders for precomputed radiance transfer.
 	cout << "Initializing PRT shaders... ";
 	GLuint prtProgram = shaders.compile( conf::SHADERS_FOLDER + "prt.vert", conf::SHADERS_FOLDER + "prt.frag" );
@@ -411,12 +388,16 @@ int main( int argc, const char * argv[] )
 			"skybox1/front.tga",
 			"skybox1/back.tga"
 	};
-	gPRT.init( 64, faces, prtProgram );
+	gPRT.init( 100, faces, prtProgram );
 
+	// Loading objects' original data to be used in PRT.
 	vector<vec3> vertices, normals;
 	vector<vec2> uvs;
-	Object3D::loadOBJ( "cube.obj", vertices, uvs, normals );	// Loading objects' original data to be used in PRT.
-	gPRT.addObject( "Cube", vertices, normals, eye( 4,4 ), { 1.0, 1.0, 1.0 } );
+	Object3D::loadOBJ( "cube.obj", vertices, uvs, normals );
+	gPRT.addObject( "CubeTop", vertices, normals, Tx::translate( 0.0, 0.125, 0.0 ) * Tx::scale( 2.5, 0.075, 2.5 ), { 1.0, 1.0, 1.0 } );
+	gPRT.addObject( "CubeBottom", vertices, normals, Tx::translate( 0.0, 0.05, 0.0 ) * Tx::scale( 3.0, 0.05, 3.0 ), { 1.0, 1.0, 1.0 } );
+	Object3D::loadOBJ( "dragon.obj", vertices, uvs, normals );
+	gPRT.addObject( "Dragon", vertices, normals, Tx::translate( 0.0, 0.2, 0.0 ) * Tx::rotate( M_PI/2.0, Tx::Y_AXIS ), { 1.0, 1.0, 1.0 } );
 
 	gPRT.precomputeRadianceTransfer();
 
@@ -452,7 +433,6 @@ int main( int argc, const char * argv[] )
 	float transcurredTimePerFrame;
 	string FPS = "FPS: ";
 
-//	ogl.create3DObject( "dragon", "dragon.obj" );
 	ogl.setUsingUniformScaling( true );							// Important! We'll be using uniform scaling in the following scene rendering.
 
 	// Rendering loop.
@@ -489,9 +469,6 @@ int main( int argc, const char * argv[] )
 		glEnable( GL_CULL_FACE );
 		glUseProgram( prtProgram );
 		gPRT.renderObjects( Proj, Camera, Model );
-//		ogl.useProgram( renderingProgram );
-//		ogl.setLighting( gLights[0], Camera );
-//		renderScene( Proj, Camera, Model, currentTime );
 
 		/////////////////////////////////////////////// Render skybox //////////////////////////////////////////////////
 
@@ -504,7 +481,7 @@ int main( int argc, const char * argv[] )
 		glUniform1i( skybox_sampler_location, 0 );
 		mat44 CameraPrime = eye( 4, 4 );									// Obtain the principal 3x3 submatrix of the View transform to remove the translation.
 		CameraPrime.submat( 0, 0, 2, 2 ) = Camera.submat( 0, 0, 2, 2 );
-//		ogl.drawCube( Proj, CameraPrime, Model );							// Cube will be colored with cube texture map.
+		ogl.drawCube( Proj, CameraPrime, Model );							// Cube will be colored with cube texture map.
 
 		glCullFace( GL_BACK );
 		glDepthMask( GL_TRUE );

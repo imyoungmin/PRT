@@ -252,22 +252,22 @@ void PRT::_projectLighting()
  */
 void PRT::_unshadowedDiffuseTransferProjection()
 {
-	for( Object3D& object : _objects )
+	for( unique_ptr<Object3D>& object : _objects )					// Note that with unique_ptr we keep using references (but operate with -> instead of .).
 	{
-		object.resetSHCoefficients();
-		const vec3& color = object.getColor();
+		object->resetSHCoefficients();
+		const vec3& color = object->getColor();
 
 		// Diffuse transfer projection at each vertex.
-		for( unsigned int i = 0; i < object.getVerticesCount(); i++ )
+		for( unsigned int i = 0; i < object->getVerticesCount(); i++ )
 		{
-			const vec3& n = object.getVertexNormalAt( i );			// Vertex normal.
+			const vec3& n = object->getVertexNormalAt( i );			// Vertex normal.
 			for( const Sample& sample : _samples )					// For each (\theta, \phi) direction.
 			{
 				double h = max( 0.0, dot( n, sample.getPosition() ) );		// Geometric function.
 				if( h > 0 )
 				{
 					for( unsigned int j = 0; j < N_BANDS * N_BANDS; j++ )
-						object.accumulateSHCoefficients( i, j, sample.getSHValueAt( j ) * h * color );
+						object->accumulateSHCoefficients( i, j, sample.getSHValueAt( j ) * h * color );
 				}
 			}
 		}
@@ -275,10 +275,10 @@ void PRT::_unshadowedDiffuseTransferProjection()
 		// Projection: final scaling.
 		// c_k \approx \frac{4\pi}{n} \sum_{j=1}^{n}( f(\omega_j) y_k(\omega_j) ).
 		// Also, T_{DU}(L_p) = (\rho_p/\pi) \int L_p(s) H_{Np}(s) ds. -- so we divide by \pi.
-		object.scaleSHCoefficients( 4.0 / _samples.size() );
+		object->scaleSHCoefficients( 4.0 / _samples.size() );
 
 		// Load computed coefficients into a texture.
-		object.loadSHCoefficientsIntoTexture();
+		object->loadSHCoefficientsIntoTexture();
 	}
 }
 
@@ -422,8 +422,9 @@ int PRT::getCubeMapFaceNrChannels() const
 void PRT::addObject( const char* name, const vector<vec3>& vertices, const vector<vec3>& normals, const mat44& T, const vec3& color )
 {
 	// New object, with _N_BANDS^2 spherical harmonics projection coefficients per vertex.
-	// Note the use of emplace_back to avoid the extra copy of push_back.
-	_objects.emplace_back( name, vertices, normals, T, color );
+	// Using unique_ptr allows the unique object that is cretated to be destroyed ONLY when the container is destroyed.
+	unique_ptr<Object3D> object3D( new Object3D( name, vertices, normals, T, color ) );
+	_objects.push_back( move( object3D ) );		// Move ownership of unique_ptr.
 }
 
 /**
@@ -472,9 +473,9 @@ void PRT::renderObjects( const mat44& Projection, const mat44& Camera, const mat
 		glUniform3fv( lightCoeffs_location, N_BANDS * N_BANDS, _lightCoefficientsArray );
 	}
 
-	for( const Object3D& o : _objects )
+	for( const unique_ptr<Object3D>& o : _objects )								// Note that with unique_ptr we use references.
 	{
-		glBindBuffer( GL_ARRAY_BUFFER, o.getBufferID() );
+		glBindBuffer( GL_ARRAY_BUFFER, o->getBufferID() );
 
 		// Set up our vertex and spherical harmonics coefficients attributes and uniforms.
 		GLint position_location = glGetAttribLocation( _renderingProgram, "position" );
@@ -485,12 +486,12 @@ void PRT::renderObjects( const mat44& Projection, const mat44& Camera, const mat
 			glVertexAttribPointer( static_cast<GLuint>( position_location ), PRT_ELEMENTS_PER_VERTEX, GL_FLOAT, GL_FALSE, 0, nullptr );
 
 			glActiveTexture( GL_TEXTURE0 );											// Send the spherical harmonics coefficients.
-			glBindTexture( GL_TEXTURE_BUFFER, o.getTBOTextureID() );
-			glTexBuffer( GL_TEXTURE_BUFFER, GL_R32F, o.getTBOID() );
+			glBindTexture( GL_TEXTURE_BUFFER, o->getTBOTextureID() );
+			glTexBuffer( GL_TEXTURE_BUFFER, GL_R32F, o->getTBOID() );
 			glUniform1i( shCoefficients_location, 0 );
 
 			// Draw triangles.
-			glDrawArrays( GL_TRIANGLES, 0, o.getVerticesCount() );
+			glDrawArrays( GL_TRIANGLES, 0, o->getVerticesCount() );
 
 			// Disable attribute arrays.
 			glDisableVertexAttribArray( static_cast<GLuint>( position_location ) );
