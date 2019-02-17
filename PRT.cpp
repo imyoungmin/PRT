@@ -353,17 +353,27 @@ void PRT::_shadowedDiffuseTransferProjection()
  */
 int PRT::_visibility( const vec3& p, const unsigned int s, const Triangle* trianglePtr )
 {
-	vec3 d = normalise( 100.0 * _samples[s].getPosition() - p );		// Calculate ray direction by extending the sample position to "infinity".
+	// Value cached?
+	stringstream ss;
+	p.raw_print( ss );
+	string pStr = ss.str();
+	short cachedVisibility = _samples[s].checkVisibility( pStr );
+	if( cachedVisibility != -1 )
+		return cachedVisibility;
 
-	// TODO: Check cache for this vertex and sample index before expensive calculation.
+	vec3 d = normalise( 100.0 * _samples[s].getPosition() - p );		// Calculate ray direction by extending the sample position to "infinity".
 
 	// Check if a ray r(t) = p + td intersect any triangle in any object of the scene.
 	for( unique_ptr<Object3D>& object : _objects )
 	{
 		if( object->rayIntersection( p, d, trianglePtr ) )
+		{
+			_samples[s].cacheVisibility( pStr, false );					// Cache visibility for this vertex position.
 			return 0;													// Vertex occluded.
+		}
 	}
 
+	_samples[s].cacheVisibility( pStr, true );							// Cache visibility for this vertex position.
 	return 1;
 }
 
@@ -601,6 +611,35 @@ Sample::Sample( double theta, double phi, const vector<double>& sh )
 
 	// Position in rectangular coordinates.
 	_position = { sin( _theta ) * cos( _phi ), sin( _theta ) * sin( _phi ), cos( _theta ) };
+}
+
+/**
+ * Check cached visibility map for a given vertex with respect to this sample.
+ * @param p Vertex position in string format.
+ * @return -1 if not yet determined, 0 if not visible, 1 if visible.
+ */
+short Sample::checkVisibility( const string& p )
+{
+	try
+	{
+		if( _visibilityMap.at( p ) )
+			return 1;					// Vertex is visible.
+		return 0;						// Vertex is not visible.
+	}
+	catch( const out_of_range& e )
+	{
+		return -1;						// Information not available yet for queried vertex.
+	}
+}
+
+/**
+ * Cache visibility value for vertex.
+ * @param p Vertex string version.
+ * @param value True if visible, false otherwise.
+ */
+void Sample::cacheVisibility( const string& p, bool value )
+{
+	_visibilityMap[p] = value;
 }
 
 /**

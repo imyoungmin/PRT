@@ -396,8 +396,8 @@ int main( int argc, const char * argv[] )
 	Object3D::loadOBJ( "cube.obj", vertices, uvs, normals );
 	gPRT.addObject( "CubeTop", vertices, normals, Tx::translate( 0.0, 0.125, 0.0 ) * Tx::scale( 2.5, 0.075, 2.5 ), { 1.0, 1.0, 1.0 } );
 	gPRT.addObject( "CubeBottom", vertices, normals, Tx::translate( 0.0, 0.05, 0.0 ) * Tx::scale( 3.0, 0.05, 3.0 ), { 1.0, 1.0, 1.0 } );
-	Object3D::loadOBJ( "dragon.obj", vertices, uvs, normals );
-	gPRT.addObject( "Dragon", vertices, normals, Tx::translate( 0.0, 0.2, 0.0 ) * Tx::rotate( M_PI/2.0, Tx::Y_AXIS ), { 1.0, 1.0, 1.0 } );
+//	Object3D::loadOBJ( "dragon.obj", vertices, uvs, normals );
+//	gPRT.addObject( "Dragon", vertices, normals, Tx::translate( 0.0, 0.2, 0.0 ) * Tx::rotate( M_PI/2.0, Tx::Y_AXIS ), { 1.0, 1.0, 1.0 } );
 
 	gPRT.precomputeRadianceTransfer();
 

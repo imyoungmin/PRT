@@ -7,6 +7,7 @@
 
 #include <armadillo>
 #include <random>
+#include <map>
 #include "stb_image.h"
 #include "Configuration.h"
 #include "Transformations.h"
@@ -31,11 +32,14 @@ namespace prt
 		vec3 _position;						// Position in rectangular coordinates [x,y,z].
 		double _theta, _phi;				// Spherical coordinates: \theta, \phi -- \rho = 1.
 		vector<double> _sh;					// Spherical harmonics function evaluations: _N_BANDS^2.
+		map<string, bool> _visibilityMap;	// Cache for visibility of vertices with respect to this sample.
 
 	public:
 		explicit Sample( double theta, double phi, const vector<double>& sh );
 		double getSHValueAt( int index ) const;
 		const vec3& getPosition() const;
+		short checkVisibility( const string& p );
+		void cacheVisibility( const string& p, bool value );
 	};
 
 	/**
