@@ -23,7 +23,7 @@ Object3D::Object3D( const char* name, const vector<vec3>& vertices, const vector
 	// Transform vertices and normals to world coordinates and register triangles with references.
 	mat33 R = Tx::getInvTransModelView( T, false );		// Don't assume uniform scaling: to transform the normals.
 
-	int i = 0;
+	unsigned int i = 0;
 	while( i < vertices.size() )
 	{
 		for( int j = 0; j < 3; j++, i++ )				// Three vertices per triangle.
@@ -36,8 +36,12 @@ Object3D::Object3D( const char* name, const vector<vec3>& vertices, const vector
 			_shCoefficients.push_back( new vec3[N_BANDS * N_BANDS] );
 		}
 
-		// Register triangle.
-		_triangles.emplace_back( _vertices[i-3], _vertices[i-2], _vertices[i-1], _normals[i-3], _normals[i-2], _normals[i-1] );
+		// Register triangle and reference this new triangle to each vertex (circular link).
+		auto triangle = new Triangle( this, i-3, i-2, i-1 );
+		_triangles.emplace_back( triangle );
+		_verticesTriangles.push_back( triangle );		// Past three vertices belong to same triangle.
+		_verticesTriangles.push_back( triangle );
+		_verticesTriangles.push_back( triangle );
 	}
 
 	// Create OpenGL objects and variables.
@@ -89,9 +93,6 @@ void Object3D::loadSHCoefficientsIntoTexture()
 	glBufferData( GL_TEXTURE_BUFFER, coefficientsSize, coeffs.data(), GL_STATIC_DRAW );
 	glBindBuffer( GL_TEXTURE_BUFFER, 0 );
 	cout << "[PRTObject3D][" << _name << "] Successfully wrote " << coeffs.size() << " spherical harmonics coefficients to TBO!" << endl;
-
-	// We can now free the coefficients' memory from the application.
-	_deallocateGeometries();
 }
 
 /**
@@ -169,7 +170,7 @@ void Object3D::accumulateSHCoefficients( unsigned int vIndex, unsigned int shInd
 /**
  * Retrieve a vertex position.
  * @param index Vertex index.
- * @return 3D position.
+ * @return Reference to 3D position.
  */
 const vec3& Object3D::getVertexPositionAt( unsigned int index ) const
 {
@@ -179,7 +180,7 @@ const vec3& Object3D::getVertexPositionAt( unsigned int index ) const
 /**
  * Retrieve a vertex normal.
  * @param index Normal index.
- * @return 3D normal vector.
+ * @return Reference to 3D normal vector.
  */
 const vec3& Object3D::getVertexNormalAt( unsigned int index ) const
 {
@@ -193,6 +194,46 @@ const vec3& Object3D::getVertexNormalAt( unsigned int index ) const
 const vec3& Object3D::getColor() const
 {
 	return _color;
+}
+
+/**
+ * Retrieve object's name.
+ * @return Object's name.
+ */
+const string& Object3D::getName() const
+{
+	return _name;
+}
+
+/**
+ * Retrieve a vertex pointer to the triangle it belongs to.
+ * @param index Vertex triangle index.
+ * @return Pointer to vertex's triangle.
+ */
+const Triangle* Object3D::getVertexTrianglePtrAt( unsigned int index ) const
+{
+	return _verticesTriangles[ index ];
+}
+
+/**
+ * Check whether a point (i.e. a vertex on some object) intersects this object.
+ * @param p Ray origin (i.e. a vertex position).
+ * @param d Ray direction (i.e. in the direction of a lighting sample).
+ * @param trianglePtr Pointer to triangle that p belongs to.
+ * @return True if ray intersects this object, false otherwise.
+ */
+bool Object3D::rayIntersection( const vec3& p, const vec3& d, const Triangle* trianglePtr )
+{
+	for( const Triangle* triangle : _triangles )
+	{
+		if( triangle == trianglePtr )				// Skip checking triangle that the input vertex position belongs to.
+			continue;
+
+		if( triangle->rayIntersection( p, d ) )
+			return true;
+	}
+
+	return false;
 }
 
 /**
@@ -228,7 +269,7 @@ GLsizei Object3D::_getData( vector<float>& outVs, vector<float>& outNs ) const
 /**
  * Free memory for unnecessary geometries.
  */
-void Object3D::_deallocateGeometries()
+void Object3D::deallocateGeometries()
 {
 	for( int i = 0; i < _verticesCount; i++ )
 	{
@@ -238,6 +279,15 @@ void Object3D::_deallocateGeometries()
 			_shCoefficients[i] = nullptr;
 		}
 	}
+
+	for( int i = 0; i < _triangles.size(); i++ )
+	{
+		if( _triangles[i] )
+		{
+			delete _triangles[i];
+			_triangles[i] = nullptr;
+		}
+	}
 }
 
 /**
@@ -245,7 +295,7 @@ void Object3D::_deallocateGeometries()
  */
 Object3D::~Object3D()
 {
-	_deallocateGeometries();
+	deallocateGeometries();
 	cout << "[PRT][" << _name << "] destroyed!" << endl;
 }
 
@@ -254,14 +304,52 @@ Object3D::~Object3D()
 
 /**
  * Constructor.
+ * @param oPtr Pointer to object that owns the triangle.
  * @param ver0 First vertex (in CCW order).
  * @param ver1 Second vertex.
  * @param ver2 Third vertex.
- * @param nor0 First normal.
- * @param nor1 Second normal.
- * @param nor2 Third normal.
  */
-Triangle::Triangle( const vec3& ver0, const vec3& ver1, const vec3& ver2, const vec3& nor0, const vec3& nor1, const vec3& nor2 ):
-	_v0Ref( ver0 ), _v1Ref( ver1 ), _v2Ref( ver2 ), _n0Ref( nor0 ), _n1Ref( nor1 ), _n2Ref( nor2 )
-{}
+Triangle::Triangle( const Object3D* oPtr, unsigned int ver0, unsigned int ver1, unsigned int ver2 ):
+	_objectPtr( oPtr), _v0( ver0 ), _v1( ver1 ), _v2( ver2 )
+{
+	// Get the vertices from bound object.
+	const vec3& v0 = _objectPtr->getVertexPositionAt( ver0 );
+	const vec3& v1 = _objectPtr->getVertexPositionAt( ver1 );
+	const vec3& v2 = _objectPtr->getVertexPositionAt( ver2 );
+
+	_normal = cross( v1 - v0, v2 - v0 );	// Calculate supporting plane normal's vector.
+	_normal = normalise( _normal );
+	_d = dot( _normal, v0 );				// Parameter d in plane equation n \dot x = d.
+}
+
+/**
+ * Check if a ray r(t) = p + td intersects this triangle.
+ * @param p Ray origin.
+ * @param d Ray direction.
+ * @return True if ray intersects triangle, false otherwise.
+ */
+bool Triangle::rayIntersection( const vec3& p, const vec3& d ) const
+{
+	double nDotD = dot( _normal, d );
+	double eps = numeric_limits<double>::epsilon();			// Some numerical tolerance.
+	if( -eps < nDotD && nDotD < eps )						// Ray is (almost) parallel to plane? Dot product == 0.
+		return false;
+
+	double t = ( _d - dot( _normal, p ) ) / nDotD;			// Parameter in ray equation that yields intersectino with triangle's plane.
+	if( t < eps )											// Check if p already on the plane (t == 0), or triangle is behind origin of ray (t < 0).
+		return false;										// This avoids having a point on the triangle marked as if it intersect it.
+
+	// Basically we require t to be extrictly positive to consider a possible intersection.
+	vec3 q = p + t * d;
+
+	// If reached this point, check if q is inside or outside triangle.
+	// Get the vertices from bound object.
+	const vec3& v0 = _objectPtr->getVertexPositionAt( _v0 );
+	const vec3& v1 = _objectPtr->getVertexPositionAt( _v1 );
+	const vec3& v2 = _objectPtr->getVertexPositionAt( _v2 );
+
+	return ( dot( cross( v1 - v0, q - v0 ), _normal ) >= -eps &&
+			 dot( cross( v2 - v1, q - v1 ), _normal ) >= -eps &&
+			 dot( cross( v0 - v2, q - v2 ), _normal ) >= -eps );
+}
 

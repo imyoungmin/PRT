@@ -15,17 +15,24 @@ using namespace arma;
 
 namespace prt
 {
+	class Object3D;								// Forward declaration.
+
 	/**
 	 * Organizing vertices and normals into triangles by keeping references to original vectors.
 	 */
 	class Triangle
 	{
 	private:
-		const vec3& _v0Ref, _v1Ref, _v2Ref;		// Vertices.
-		const vec3& _n0Ref, _n1Ref, _n2Ref;		// Normal vectors.
+		const Object3D* _objectPtr;				// Object this triangle belongs to.
+		const unsigned int _v0;					// Vertex indices.
+		const unsigned int _v1;
+		const unsigned int _v2;
+		vec3 _normal;							// Triangle's supporting plane normal vector, assuming vertices are given in CCW direction.
+		double _d;								// Given the equation of the supporting plane: n \dot x = d
 
 	public:
-		explicit Triangle( const vec3& ver0, const vec3& ver1, const vec3& ver2, const vec3& nor0, const vec3& nor1, const vec3& nor2 );
+		explicit Triangle( const Object3D* oPtr, unsigned int ver0, unsigned int ver1, unsigned int ver2 );
+		bool rayIntersection( const vec3& p, const vec3& d ) const;
 	};
 
 
@@ -36,8 +43,9 @@ namespace prt
 	{
 	private:
 		string _name;							// Object name.
-		vector<Triangle> _triangles;			// Geometry data: vertices, normals, and triangles with references.
+		vector<Triangle*> _triangles;			// Geometry data: vertices, normals, and triangles with references.
 		vector<vec3> _vertices;
+		vector<Triangle*> _verticesTriangles;	// Each vertex needs to know which triangle it belongs to to avoid self intersections.
 		vector<vec3> _normals;
 		vector<vec3*> _shCoefficients;			// Spherical harmonics projection coefficients for each color channel.
 		vec3 _color;							// Object uniform color: currently supported only RGB (no transparency).
@@ -47,7 +55,6 @@ namespace prt
 		GLuint _tboTextureID;					// Associated texture for accessing TBO.
 
 		GLsizei _getData( vector<float>& outVs, vector<float>& outNs ) const;
-		void _deallocateGeometries();
 
 	public:
 		explicit Object3D( const char* name, const vector<vec3>& vertices, const vector<vec3>& normals, const mat44& T, const vec3& color );
@@ -60,8 +67,12 @@ namespace prt
 		void accumulateSHCoefficients( unsigned int vIndex, unsigned int shIndex, const vec3& value );
 		void loadSHCoefficientsIntoTexture();
 		const vec3& getVertexPositionAt( unsigned int index ) const;
+		const Triangle* getVertexTrianglePtrAt( unsigned int index ) const;
 		const vec3& getVertexNormalAt( unsigned int index ) const;
 		const vec3& getColor() const;
+		const string& getName() const;
+		bool rayIntersection( const vec3& p, const vec3& d, const Triangle* trianglePtr );
+		void deallocateGeometries();
 		~Object3D();
 	};
 }

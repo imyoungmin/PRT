@@ -248,7 +248,7 @@ void PRT::_projectLighting()
 
 /**
  * Project the objects' vertices onto the N_BANDS^2 spherical harmonics functions.
- * This is for the unshadow diffuse transfer function.
+ * This is for the unshadowed diffuse transfer function.
  */
 void PRT::_unshadowedDiffuseTransferProjection()
 {
@@ -280,6 +280,91 @@ void PRT::_unshadowedDiffuseTransferProjection()
 		// Load computed coefficients into a texture.
 		object->loadSHCoefficientsIntoTexture();
 	}
+
+	// Free memory fron unnecessary geometries in objects.
+	cout << "[PRT] Deallocating unnecessary geometries from objects.. ";
+	for( unique_ptr<Object3D>& object : _objects )
+		object->deallocateGeometries();
+	cout << "Done!" << endl;
+}
+
+/**
+ * Project the objects' vertices onto the N_BANDS^2 spherical harmonics functions.
+ * This is for the shadowed diffuse transfer function.
+ */
+void PRT::_shadowedDiffuseTransferProjection()
+{
+	for( unique_ptr<Object3D>& object : _objects )					// Note that with unique_ptr we keep using references (but operate with -> instead of .).
+	{
+		// How long it takes...
+		long startTicks = duration_cast<milliseconds>( system_clock::now().time_since_epoch() ).count();
+		cout << "[PRT] Processing " << object->getName() <<"... " << endl;
+
+		// Set spherical coefficients to 0 for each RGB channel.
+		object->resetSHCoefficients();
+		const vec3& color = object->getColor();
+
+		// Diffuse transfer projection at each vertex.
+		for( unsigned int i = 0; i < object->getVerticesCount(); i++ )
+		{
+			const vec3& p = object->getVertexPositionAt( i );				// Vertex position.
+			const vec3& n = object->getVertexNormalAt( i );					// Vertex normal.
+			const Triangle* tPtr = object->getVertexTrianglePtrAt( i );		// Vertex triangle pointer.
+			for( unsigned int s = 0; s < _N_SAMPLES; s++ )					// For each (\theta, \phi) direction.
+			{
+				if( _visibility( p, s, tPtr ) == 1 )						// Visibility evaluation.
+				{
+					double h = max( 0.0, dot( n, _samples[s].getPosition() ) );		// Geometric function.
+					if( h > 0 )
+					{
+						for( unsigned int j = 0; j < N_BANDS * N_BANDS; j++ )
+							object->accumulateSHCoefficients( i, j, _samples[s].getSHValueAt( j ) * h * color );
+					}
+				}
+			}
+		}
+
+		// Projection: final scaling.
+		// c_k \approx \frac{4\pi}{n} \sum_{j=1}^{n}( f(\omega_j) y_k(\omega_j) ).
+		// Also, T_{DU}(L_p) = (\rho_p/\pi) \int L_p(s) H_{Np}(s) ds. -- so we divide by \pi.
+		object->scaleSHCoefficients( 4.0 / _samples.size() );
+
+		// Load computed coefficients into a texture.
+		object->loadSHCoefficientsIntoTexture();
+
+		// Take time.
+		long totalTicks = duration_cast<milliseconds>( system_clock::now().time_since_epoch() ).count() - startTicks;
+		cout << "[PRT] Done with " << object->getName() << " after " << (totalTicks / 1000.0) << " seconds" << endl;
+	}
+
+	// Free memory fron unnecessary geometries in objects.
+	cout << "[PRT] Deallocating unnecessary geometries from objects.. ";
+	for( unique_ptr<Object3D>& object : _objects )
+		object->deallocateGeometries();
+	cout << "Done!" << endl;
+}
+
+/**
+ * Visibility function.
+ * @param p Vertex position.
+ * @param s Sample index.
+ * @param trianglePtr Pointer to triangle which current vertex belongs to.
+ * @return 1 if vertex is visible, 0 otherwise.
+ */
+int PRT::_visibility( const vec3& p, const unsigned int s, const Triangle* trianglePtr )
+{
+	vec3 d = normalise( 100.0 * _samples[s].getPosition() - p );		// Calculate ray direction by extending the sample position to "infinity".
+
+	// TODO: Check cache for this vertex and sample index before expensive calculation.
+
+	// Check if a ray r(t) = p + td intersect any triangle in any object of the scene.
+	for( unique_ptr<Object3D>& object : _objects )
+	{
+		if( object->rayIntersection( p, d, trianglePtr ) )
+			return 0;													// Vertex occluded.
+	}
+
+	return 1;
 }
 
 /**
@@ -436,8 +521,9 @@ void PRT::precomputeRadianceTransfer()
 	_projectLighting();
 	cout << "[PRT] Done!" << endl;
 
-	cout << "[PRT] Now projecting unshadowed diffuse transfer function... " << endl;
-	_unshadowedDiffuseTransferProjection();
+	cout << "[PRT] Now projecting shadowed diffuse transfer function... " << endl;
+//	_unshadowedDiffuseTransferProjection();
+	_shadowedDiffuseTransferProjection();
 	cout << "[PRT] Done!" << endl;
 }
 

@@ -15,6 +15,7 @@
 
 using namespace arma;
 using namespace std;
+using namespace std::chrono;
 
 /**
  * Precomputed Radiance Transfer namespace.
@@ -71,6 +72,8 @@ namespace prt
 		void _queryCubeMap( const vec3& query, unsigned char* output ) const;
 		void _projectLighting();
 		void _unshadowedDiffuseTransferProjection();
+		void _shadowedDiffuseTransferProjection();
+		int _visibility( const vec3& p, const unsigned int s, const Triangle* trianglePtr );
 		double _y_lm( int l, int m, double theta, double phi );
 		double _K_lm( int l, int m );
 		int _factorial( int x );
