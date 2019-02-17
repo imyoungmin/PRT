@@ -322,6 +322,10 @@ void PRT::_shadowedDiffuseTransferProjection()
 					}
 				}
 			}
+
+			long vTotalTicks = duration_cast<milliseconds>( system_clock::now().time_since_epoch() ).count() - startTicks;
+			if( i % 500 == 0 && i != 0 )
+				cout << "[PRT] " << i << " vertices processed after " << (vTotalTicks / 1000.0) << " seconds" << endl;
 		}
 
 		// Projection: final scaling.

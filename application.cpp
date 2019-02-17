@@ -388,16 +388,20 @@ int main( int argc, const char * argv[] )
 			"skybox1/front.tga",
 			"skybox1/back.tga"
 	};
-	gPRT.init( 100, faces, prtProgram );
+	gPRT.init( 10*10, faces, prtProgram );
 
 	// Loading objects' original data to be used in PRT.
 	vector<vec3> vertices, normals;
 	vector<vec2> uvs;
 	Object3D::loadOBJ( "cube.obj", vertices, uvs, normals );
-	gPRT.addObject( "CubeTop", vertices, normals, Tx::translate( 0.0, 0.125, 0.0 ) * Tx::scale( 2.5, 0.075, 2.5 ), { 1.0, 1.0, 1.0 } );
+	gPRT.addObject( "CubeTop", vertices, normals, Tx::translate( 0.0, 0.25, 0.0 ) * Tx::scale( 2.0, 0.05, 2.0 ), { 1.0, 1.0, 1.0 } );
 	gPRT.addObject( "CubeBottom", vertices, normals, Tx::translate( 0.0, 0.05, 0.0 ) * Tx::scale( 3.0, 0.05, 3.0 ), { 1.0, 1.0, 1.0 } );
-//	Object3D::loadOBJ( "dragon.obj", vertices, uvs, normals );
-//	gPRT.addObject( "Dragon", vertices, normals, Tx::translate( 0.0, 0.2, 0.0 ) * Tx::rotate( M_PI/2.0, Tx::Y_AXIS ), { 1.0, 1.0, 1.0 } );
+//	Object3D::loadOBJ( "bust.obj", vertices, uvs, normals );
+//	gPRT.addObject( "Bust", vertices, normals, Tx::scale( 0.75 ) * Tx::rotate( -M_PI/2.0, Tx::X_AXIS ) * Tx::rotate( M_PI, Tx::Z_AXIS ), { 1.0, 1.0, 1.0 } );
+	Object3D::loadOBJ( "mask.obj", vertices, uvs, normals );
+	gPRT.addObject( "Mask", vertices, normals, Tx::translate( 0.0, 0.3, 0.0 ) * Tx::scale( 0.75 ), { 1.0, 1.0, 1.0 } );
+//	Object3D::loadOBJ( "deer.obj", vertices, uvs, normals );
+//	gPRT.addObject( "Deer", vertices, normals, Tx::translate( 0.0, 0.2, 0.0 ) * Tx::scale( 0.75 ) * Tx::rotate( M_PI/2.0, Tx::Y_AXIS ), { 1.0, 1.0, 1.0 } );
 
 	gPRT.precomputeRadianceTransfer();
 

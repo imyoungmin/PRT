@@ -331,7 +331,7 @@ Triangle::Triangle( const Object3D* oPtr, unsigned int ver0, unsigned int ver1, 
 bool Triangle::rayIntersection( const vec3& p, const vec3& d ) const
 {
 	double nDotD = dot( _normal, d );
-	double eps = numeric_limits<double>::epsilon();			// Some numerical tolerance.
+	double eps = 0.00001;									// Some numerical tolerance.
 	if( -eps < nDotD && nDotD < eps )						// Ray is (almost) parallel to plane? Dot product == 0.
 		return false;
 
