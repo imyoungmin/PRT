@@ -1,6 +1,6 @@
 #version 410 core
 
-const int N_BANDS = 3;									// Number of spherical harmonics bands.
+const int N_BANDS = 4;									// Number of spherical harmonics bands.
 
 in vec3 position;										// Position in world coordinates.
 

@@ -9,7 +9,7 @@ namespace prt
 {
 	const int PRT_ELEMENTS_PER_VERTEX = 3;
 	const int PRT_ELEMENTS_PER_MATRIX = 16;
-	const int N_BANDS = 3;						// Number of Spherical-Harmonics bands.
+	const int N_BANDS = 4;						// Number of Spherical-Harmonics bands.
 }
 
 #endif //PRT_PRTCONSTANTS_H

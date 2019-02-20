@@ -312,15 +312,16 @@ void PRT::_shadowedDiffuseTransferProjection()
 			const Triangle* tPtr = object->getVertexTrianglePtrAt( i );		// Vertex triangle pointer.
 			for( unsigned int s = 0; s < _N_SAMPLES; s++ )					// For each (\theta, \phi) direction.
 			{
-				if( _visibility( p, s, tPtr ) == 1 )						// Visibility evaluation.
+				double h = max( 0.0, dot( n, _samples[s].getPosition() ) );	// Geometric function.
+				if( h > 0 )
 				{
-					double h = max( 0.0, dot( n, _samples[s].getPosition() ) );		// Geometric function.
-					if( h > 0 )
+					if( _visibility( p, s, tPtr ) == 1 )					// Visibility evaluation only for rays that emanate in the hemisphere aound the normal.
 					{
 						for( unsigned int j = 0; j < N_BANDS * N_BANDS; j++ )
 							object->accumulateSHCoefficients( i, j, _samples[s].getSHValueAt( j ) * h * color );
 					}
 				}
+
 			}
 
 			long vTotalTicks = duration_cast<milliseconds>( system_clock::now().time_since_epoch() ).count() - startTicks;

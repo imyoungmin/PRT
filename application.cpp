@@ -31,6 +31,7 @@ vec3 gUp;
 bool gLocked;							// Track if mouse button is pressed down.
 bool gUsingArrowKey;					// Track if we are using the arrow keys for rotating scene.
 bool gRotatingLights;					// Enable/disable rotating lights about the scene.
+bool gRotatingCamera;					// Enable/disable rotating camera.
 float gZoom;							// Camera zoom.
 const float ZOOM_IN = 1.015;
 const float ZOOM_OUT = 0.985;
@@ -156,7 +157,12 @@ void keyCallback( GLFWwindow* window, int key, int scancode, int action, int mod
 			gZoom = 1.0;
 			break;
 		case GLFW_KEY_L:
-			gRotatingLights = !gRotatingLights;
+			if( !gRotatingCamera )				// Avoid rotating camera and lights at the same time.
+				gRotatingLights = !gRotatingLights;
+			break;
+		case GLFW_KEY_C:
+			if( !gRotatingLights )
+				gRotatingCamera = !gRotatingCamera;
 			break;
 		default: return;
 	}
@@ -304,12 +310,13 @@ int main( int argc, const char * argv[] )
 {
 	srand( static_cast<unsigned>( time( nullptr ) ) );
 	
-	gPointOfInterest = { 0, 1, 0 };		// Camera controls globals.
-	gEye = { 6, 5, 8 };
+	gPointOfInterest = { 0, 2.5, 0 };		// Camera controls globals.
+	gEye = { 3, 5, 9 };
 	gUp = Tx::Y_AXIS;
 	
 	gLocked = false;					// Track if mouse button is pressed down.
-	gRotatingLights = false;			// Start with still lights.
+	gRotatingLights = false;			// Start with still lights and camera.
+	gRotatingCamera = false;
 	gUsingArrowKey = false;				// Track pressing action of arrow keys.
 	gZoom = 1.0;						// Camera zoom.
 	
@@ -381,27 +388,24 @@ int main( int argc, const char * argv[] )
 	///////////////////////////////// Initialize precomputed radiance transfer object //////////////////////////////////
 
 	vector<string> faces = {
-			"skybox1/right.tga",
-			"skybox1/left.tga",
-			"skybox1/top.tga",
-			"skybox1/bottom.tga",
-			"skybox1/front.tga",
-			"skybox1/back.tga"
+			"lancellotti/right.jpg",
+			"lancellotti/left.jpg",
+			"lancellotti/top.jpg",
+			"lancellotti/bottom.jpg",
+			"lancellotti/front.jpg",
+			"lancellotti/back.jpg"
 	};
-	gPRT.init( 10*10, faces, prtProgram );
+	gPRT.init( 10 * 10, faces, prtProgram );
 
 	// Loading objects' original data to be used in PRT.
 	vector<vec3> vertices, normals;
 	vector<vec2> uvs;
 	Object3D::loadOBJ( "cube.obj", vertices, uvs, normals );
-	gPRT.addObject( "CubeTop", vertices, normals, Tx::translate( 0.0, 0.25, 0.0 ) * Tx::scale( 2.0, 0.05, 2.0 ), { 1.0, 1.0, 1.0 } );
-	gPRT.addObject( "CubeBottom", vertices, normals, Tx::translate( 0.0, 0.05, 0.0 ) * Tx::scale( 3.0, 0.05, 3.0 ), { 1.0, 1.0, 1.0 } );
-//	Object3D::loadOBJ( "bust.obj", vertices, uvs, normals );
-//	gPRT.addObject( "Bust", vertices, normals, Tx::scale( 0.75 ) * Tx::rotate( -M_PI/2.0, Tx::X_AXIS ) * Tx::rotate( M_PI, Tx::Z_AXIS ), { 1.0, 1.0, 1.0 } );
-	Object3D::loadOBJ( "mask.obj", vertices, uvs, normals );
-	gPRT.addObject( "Mask", vertices, normals, Tx::translate( 0.0, 0.3, 0.0 ) * Tx::scale( 0.75 ), { 1.0, 1.0, 1.0 } );
-//	Object3D::loadOBJ( "deer.obj", vertices, uvs, normals );
-//	gPRT.addObject( "Deer", vertices, normals, Tx::translate( 0.0, 0.2, 0.0 ) * Tx::scale( 0.75 ) * Tx::rotate( M_PI/2.0, Tx::Y_AXIS ), { 1.0, 1.0, 1.0 } );
+	gPRT.addObject( "CubeBottom", vertices, normals, Tx::translate( 0.0, 0.05, 0.0 ) * Tx::scale( 2.5, 0.05, 2.0 ), { 1.0, 1.0, 1.0 } );
+//	Object3D::loadOBJ( "mercury.obj", vertices, uvs, normals );
+//	gPRT.addObject( "Mercury", vertices, normals, Tx::translate( 0.0, 0.1, 0.0 ) * Tx::scale( 1.7 ) * Tx::rotate( M_PI, Tx::Y_AXIS ), { 1.0, 1.0, 1.0 } );
+	Object3D::loadOBJ( "deer.obj", vertices, uvs, normals );
+	gPRT.addObject( "Deer", vertices, normals, Tx::translate( 0.0, 0.2, 0.0 ) * Tx::scale( 0.75 ) * Tx::rotate( M_PI/2.0, Tx::Y_AXIS ), { 1.0, 1.0, 1.0 } );
 
 	gPRT.precomputeRadianceTransfer();
 
@@ -437,6 +441,10 @@ int main( int argc, const char * argv[] )
 	float transcurredTimePerFrame;
 	string FPS = "FPS: ";
 
+	float eyeY = gEye[1];										// Build eye components from its intial value.
+	float eyeXZRadius = sqrt( gEye[0]*gEye[0] + gEye[2]*gEye[2] );
+	float eyeAngle = atan2( gEye[0], gEye[2] );
+
 	ogl.setUsingUniformScaling( true );							// Important! We'll be using uniform scaling in the following scene rendering.
 
 	// Rendering loop.
@@ -455,6 +463,12 @@ int main( int argc, const char * argv[] )
 			{ abr[2][0], abr[2][1], abr[2][2], abr[2][3] },
 			{ abr[3][0], abr[3][1], abr[3][2], abr[3][3] } };
 		mat44 Model = ArcBall.t() * Tx::scale( gZoom );
+
+		if( gRotatingCamera )
+		{
+			eyeAngle += 0.01 * M_PI;
+			gEye = { eyeXZRadius * sin( eyeAngle ), eyeY, eyeXZRadius * cos( eyeAngle ) };
+		}
 		mat44 Camera = Tx::lookAt( gEye, gPointOfInterest, gUp );
 
 		glViewport( 0, 0, fbWidth, fbHeight );
