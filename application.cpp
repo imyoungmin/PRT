@@ -395,17 +395,15 @@ int main( int argc, const char * argv[] )
 			"lancellotti/front.jpg",
 			"lancellotti/back.jpg"
 	};
-	gPRT.init( 10 * 10, faces, prtProgram );
+	gPRT.init( 25 * 25, faces, prtProgram );
 
 	// Loading objects' original data to be used in PRT.
 	vector<vec3> vertices, normals;
 	vector<vec2> uvs;
 	Object3D::loadOBJ( "cube.obj", vertices, uvs, normals );
 	gPRT.addObject( "CubeBottom", vertices, normals, Tx::translate( 0.0, 0.05, 0.0 ) * Tx::scale( 2.5, 0.05, 2.0 ), { 1.0, 1.0, 1.0 } );
-//	Object3D::loadOBJ( "mercury.obj", vertices, uvs, normals );
-//	gPRT.addObject( "Mercury", vertices, normals, Tx::translate( 0.0, 0.1, 0.0 ) * Tx::scale( 1.7 ) * Tx::rotate( M_PI, Tx::Y_AXIS ), { 1.0, 1.0, 1.0 } );
-	Object3D::loadOBJ( "deer.obj", vertices, uvs, normals );
-	gPRT.addObject( "Deer", vertices, normals, Tx::translate( 0.0, 0.2, 0.0 ) * Tx::scale( 0.75 ) * Tx::rotate( M_PI/2.0, Tx::Y_AXIS ), { 1.0, 1.0, 1.0 } );
+	Object3D::loadOBJ( "mercury.obj", vertices, uvs, normals );
+	gPRT.addObject( "Mercury", vertices, normals, Tx::translate( 0.0, 0.1, 0.0 ) * Tx::scale( 1.7 ) * Tx::rotate( M_PI, Tx::Y_AXIS ), { 1.0, 1.0, 1.0 } );
 
 	gPRT.precomputeRadianceTransfer();
 
